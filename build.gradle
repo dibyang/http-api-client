@@ -1,0 +1,86 @@
+import net.researchgate.release.GitAdapter
+
+buildscript {
+  repositories {
+    maven {
+      name "REPO_NEXUS"
+      url "http://${nexus_host}:8081/repository/maven-public/"
+    }
+  }
+  dependencies {
+    classpath 'net.researchgate:gradle-release:2.6.0'
+  }
+}
+
+apply plugin: 'maven'
+apply plugin: 'java'
+apply plugin: 'net.researchgate.release'
+
+
+release {
+  failOnUnversionedFiles = true
+  failOnCommitNeeded = true
+  failOnPublishNeeded = true
+  failOnSnapshotDependencies = false
+  failOnUpdateNeeded = true
+  revertOnFail = true
+  tagTemplate = 'v${version}'
+  scmAdapters = [
+      GitAdapter
+  ]
+
+  git {
+    requireBranch = 'master'
+    pushToRemote = 'origin'
+    pushToBranchPrefix = ''
+    commitVersionFileOnly = false
+    signTag = false
+  }
+
+}
+
+
+group 'com.ls.dnspod'
+
+tasks.withType(JavaCompile) {
+  options.encoding = "UTF-8"
+}
+
+java {
+  withSourcesJar()
+}
+
+afterReleaseBuild.dependsOn uploadArchives
+
+repositories {
+  mavenLocal()
+  maven {
+    name "REPO_NEXUS"
+    url "http://${nexus_host}:8081/repository/maven-public/"
+  }
+  mavenCentral()
+}
+
+dependencies {
+  compile("com.ls.luava:luava:${luava_version}")
+  implementation("org.apache.httpcomponents:httpclient:${httpclient_version}")
+  testImplementation 'org.junit.jupiter:junit-jupiter-api:5.7.0'
+  testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine:5.7.0'
+}
+
+test {
+    useJUnitPlatform()
+}
+
+uploadArchives {
+  repositories {
+    mavenDeployer {
+      repository(url: "http://${nexus_host}:8081/repository/maven-releases/") {
+        authentication(userName: project.rootProject.username, password: project.rootProject.password)
+      }
+      snapshotRepository(url: "http://${nexus_host}:8081/repository/maven-snapshots/") {
+        authentication(userName: project.rootProject.username, password: project.rootProject.password)
+      }
+    }
+  }
+}
