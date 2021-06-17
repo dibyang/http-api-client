@@ -6,6 +6,7 @@ import org.apache.http.client.methods.CloseableHttpResponse;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -32,5 +33,6 @@ public interface ApiClient extends Closeable, ClientContext {
   N3Map post(String uri);
   N3Map put(String uri);
   N3Map delete(String uri);
+  List<RequestHandle> getBaseRequestHandles();
   <T> T getProxy(Class<T> clazz);
 }

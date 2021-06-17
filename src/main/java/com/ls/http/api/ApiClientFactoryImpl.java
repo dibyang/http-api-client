@@ -39,7 +39,7 @@ public class ApiClientFactoryImpl implements ApiClientFactory {
 
   @Override
   public ApiClient getApiClient(String baseUri, List<Header> headers, RequestHandle... handles) {
-    List<RequestHandle> requestHandles = Lists.newLinkedList();
+    List<RequestHandle> requestHandles = Lists.newArrayList();
     if(headers!=null&&headers.size()>0){
       requestHandles.add(builder-> headers.forEach(header->builder.addHeader(header)));
     }

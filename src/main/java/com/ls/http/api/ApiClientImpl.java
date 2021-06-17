@@ -23,6 +23,7 @@ public class ApiClientImpl implements ApiClient {
   static Logger LOG = LoggerFactory.getLogger(ApiClientImpl.class);
 
   private final URI baseUri;
+
   private final List<RequestHandle> baseRequestHandles;
   private int connectTimeout;
   private int socketTimeout;
@@ -36,6 +37,11 @@ public class ApiClientImpl implements ApiClient {
     this.socketTimeout = socketTimeout;
     this.client = client;
   }
+
+  public List<RequestHandle> getBaseRequestHandles() {
+    return baseRequestHandles;
+  }
+
 
 
   @Override
