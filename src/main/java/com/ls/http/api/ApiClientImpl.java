@@ -27,6 +27,7 @@ public class ApiClientImpl implements ApiClient {
   private int connectTimeout;
   private int socketTimeout;
   private final CloseableHttpClient client;
+  private final N3Map params = new N3Map();
 
   public ApiClientImpl(String baseUri, List<RequestHandle> requestHandles, int connectTimeout, int socketTimeout, CloseableHttpClient client) {
     this.baseUri = URI.create(baseUri);
@@ -186,9 +187,21 @@ public class ApiClientImpl implements ApiClient {
     return request(HttpDelete.METHOD_NAME,uri);
   }
 
+  @Override
+  public <T> T getProxy(Class<T> clazz) {
+    ClientProxy<T> proxy = new ClientProxy<T>(this,clazz);
+
+    return proxy.getInstance();
+  }
+
 
   @Override
   public void close() throws IOException {
     client.close();
+  }
+
+  @Override
+  public N3Map getParams() {
+    return params;
   }
 }

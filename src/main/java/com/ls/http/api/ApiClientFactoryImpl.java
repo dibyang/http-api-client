@@ -47,11 +47,4 @@ public class ApiClientFactoryImpl implements ApiClientFactory {
     return new ApiClientImpl(baseUri,requestHandles,DEFAULT_CONNECT_TIMEOUT,DEFAULT_SOCKET_TIMEOUT,getHttpClient());
   }
 
-  public static void main(String[] args) {
-    ApiClientFactoryImpl factory = new ApiClientFactoryImpl();
-    final ApiClient client = factory.getRestClient("https://doob.net.cn:8443/");
-    final N3Map post = client.request("POST", "/api/p2p/mgr/client/get",h-> h.addParameter("type","server"));
-    System.out.println("post = " + post);
-
-  }
 }

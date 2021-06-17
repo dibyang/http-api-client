@@ -12,7 +12,7 @@ import java.util.Map;
  * @author yangzj
  * @date 2021/6/16
  */
-public interface ApiClient extends Closeable {
+public interface ApiClient extends Closeable, ClientContext {
   CloseableHttpResponse doRequest(String method, String uri, RequestHandle requestHandle) throws IOException;
   <T> T doRequest(String method, String uri, RequestHandle requestHandle, final ResponseHandler<? extends T> responseHandler) throws IOException;
   N3Map request(String method, String uri, RequestHandle requestHandle);
@@ -32,4 +32,5 @@ public interface ApiClient extends Closeable {
   N3Map post(String uri);
   N3Map put(String uri);
   N3Map delete(String uri);
+  <T> T getProxy(Class<T> clazz);
 }

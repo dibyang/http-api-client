@@ -40,7 +40,7 @@ release {
 }
 
 
-group 'com.ls.dnspod'
+group 'com.ls.http.api'
 
 tasks.withType(JavaCompile) {
   options.encoding = "UTF-8"
