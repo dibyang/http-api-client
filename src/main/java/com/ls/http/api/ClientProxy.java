@@ -111,7 +111,7 @@ public class ClientProxy <T> implements InvocationHandler {
     String uri = this.getUri(method);
     List<ArgParm> argParams = this.getArgParms(method, args);
     Map<String, Object> reqParams = this.getRequestParams(method, argParams);
-    final N3Map map = client.post(uri, reqParams);
+    final N3Map map = client.getRestClient().post(uri, reqParams);
     final Class<?> returnType = method.getReturnType();
     if(!returnType.isAssignableFrom(Map.class)){
       Mapping ann = method.getAnnotation(Mapping.class);

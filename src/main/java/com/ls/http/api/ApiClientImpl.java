@@ -19,7 +19,7 @@ import java.util.*;
  * @author yangzj
  * @date 2021/6/16
  */
-public class ApiClientImpl implements ApiClient {
+public class ApiClientImpl implements ApiClient, RestClient {
   static Logger LOG = LoggerFactory.getLogger(ApiClientImpl.class);
 
   private final URI baseUri;
@@ -36,6 +36,11 @@ public class ApiClientImpl implements ApiClient {
     this.connectTimeout = connectTimeout;
     this.socketTimeout = socketTimeout;
     this.client = client;
+  }
+
+  @Override
+  public RestClient getRestClient() {
+    return this;
   }
 
   public List<RequestHandle> getBaseRequestHandles() {
@@ -195,8 +200,12 @@ public class ApiClientImpl implements ApiClient {
 
   @Override
   public <T> T getProxy(Class<T> clazz) {
-    ClientProxy<T> proxy = new ClientProxy<T>(this,clazz);
+    return getApiProxy(clazz);
+  }
 
+  @Override
+  public <T> T getApiProxy(Class<T> clazz) {
+    ClientProxy<T> proxy = new ClientProxy<T>(this,clazz);
     return proxy.getInstance();
   }
 
