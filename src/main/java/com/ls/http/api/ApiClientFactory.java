@@ -14,7 +14,7 @@ public interface ApiClientFactory {
    * @param baseUri 基础uri
    * @return ApiClient
    */
-  ApiClient getRestClient(String baseUri);
+  ApiClient getApiClient(String baseUri);
 
   /**
    *
@@ -24,7 +24,7 @@ public interface ApiClientFactory {
    * @param handles 请求预处理器
    * @return ApiClient
    */
-  ApiClient getRestClient(String baseUri, List<Header> headers, RequestHandle... handles);
+  ApiClient getApiClient(String baseUri, List<Header> headers, RequestHandle... handles);
 
 
 }

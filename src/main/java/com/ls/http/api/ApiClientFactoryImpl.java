@@ -1,7 +1,6 @@
 package com.ls.http.api;
 
 import com.google.common.collect.Lists;
-import com.ls.luava.common.N3Map;
 import org.apache.http.Header;
 import org.apache.http.config.SocketConfig;
 import org.apache.http.impl.client.CloseableHttpClient;
@@ -34,12 +33,12 @@ public class ApiClientFactoryImpl implements ApiClientFactory {
   }
 
   @Override
-  public ApiClient getRestClient(String baseUri) {
-    return getRestClient(baseUri,null);
+  public ApiClient getApiClient(String baseUri) {
+    return getApiClient(baseUri,null);
   }
 
   @Override
-  public ApiClient getRestClient(String baseUri, List<Header> headers, RequestHandle... handles) {
+  public ApiClient getApiClient(String baseUri, List<Header> headers, RequestHandle... handles) {
     List<RequestHandle> requestHandles = Lists.newLinkedList();
     if(headers!=null&&headers.size()>0){
       requestHandles.add(builder-> headers.forEach(header->builder.addHeader(header)));
