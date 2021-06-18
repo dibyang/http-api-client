@@ -15,6 +15,7 @@ import java.util.Map;
  */
 public interface ApiClient extends Closeable, ClientContext {
   List<RequestHandle> getBaseRequestHandles();
+  RequestHandle getParamsHandle(Map<String, Object> params);
   RestClient getRestClient();
 
   /**

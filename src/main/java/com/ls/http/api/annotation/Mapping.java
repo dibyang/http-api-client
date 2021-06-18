@@ -1,5 +1,7 @@
 package com.ls.http.api.annotation;
 
+import com.ls.http.api.HttpMethod;
+
 import java.lang.annotation.Documented;
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
@@ -12,4 +14,5 @@ import java.lang.annotation.Target;
 public @interface Mapping {
   String value();
   String[] returnKey() default {};
+  HttpMethod method() default HttpMethod.POST;
 }

@@ -17,8 +17,17 @@ public interface RestClient {
   N3Map request(String method, String uri, RequestHandle requestHandle);
   CloseableHttpResponse doRequest(String method, String uri, Map<String,Object> params) throws IOException;
   <T> T doRequest(String method, String uri, Map<String,Object> params, final ResponseHandler<? extends T> responseHandler) throws IOException;
+  CloseableHttpResponse doRequest(HttpMethod method, String uri, RequestHandle requestHandle) throws IOException;
+  <T> T doRequest(HttpMethod method, String uri, RequestHandle requestHandle, final ResponseHandler<? extends T> responseHandler) throws IOException;
+  N3Map request(HttpMethod method, String uri, RequestHandle requestHandle);
+  CloseableHttpResponse doRequest(HttpMethod method, String uri, Map<String,Object> params) throws IOException;
+  <T> T doRequest(HttpMethod method, String uri, Map<String,Object> params, final ResponseHandler<? extends T> responseHandler) throws IOException;
+
   N3Map request(String method, String uri, Map<String,Object> params);
   N3Map request(String method, String uri);
+  N3Map request(HttpMethod method, String uri, Map<String,Object> params);
+  N3Map request(HttpMethod method, String uri);
+
   N3Map get(String uri, Map<String,Object> params);
   N3Map post(String uri, Map<String,Object> params);
   N3Map put(String uri, Map<String,Object> params);

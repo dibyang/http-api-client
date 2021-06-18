@@ -91,7 +91,7 @@ public class ApiClientImpl implements ApiClient, RestClient {
     return doRequest(method,uri,getParamsHandle(params));
   }
 
-  private RequestHandle getParamsHandle(Map<String, Object> params) {
+  public RequestHandle getParamsHandle(Map<String, Object> params) {
     return builder -> {
       if(params!=null) {
         for (String name : params.keySet()) {
@@ -129,6 +129,31 @@ public class ApiClientImpl implements ApiClient, RestClient {
   }
 
   @Override
+  public CloseableHttpResponse doRequest(HttpMethod method, String uri, RequestHandle requestHandle) throws IOException {
+    return doRequest(method.name(),uri,requestHandle);
+  }
+
+  @Override
+  public <T> T doRequest(HttpMethod method, String uri, RequestHandle requestHandle, ResponseHandler<? extends T> responseHandler) throws IOException {
+    return doRequest(method.name(),uri,requestHandle,responseHandler);
+  }
+
+  @Override
+  public N3Map request(HttpMethod method, String uri, RequestHandle requestHandle) {
+    return request(method.name(),uri,requestHandle);
+  }
+
+  @Override
+  public CloseableHttpResponse doRequest(HttpMethod method, String uri, Map<String, Object> params) throws IOException {
+    return doRequest(method.name(),uri,params);
+  }
+
+  @Override
+  public <T> T doRequest(HttpMethod method, String uri, Map<String, Object> params, ResponseHandler<? extends T> responseHandler) throws IOException {
+    return doRequest(method.name(),uri,params,responseHandler);
+  }
+
+  @Override
   public N3Map request(String method, String uri, Map<String, Object> params) {
     return request(method,uri,getParamsHandle(params));
   }
@@ -136,6 +161,16 @@ public class ApiClientImpl implements ApiClient, RestClient {
   @Override
   public N3Map request(String method, String uri) {
     return request(method,uri,(RequestHandle)null);
+  }
+
+  @Override
+  public N3Map request(HttpMethod method, String uri, Map<String, Object> params) {
+    return request(method.name(),uri,params);
+  }
+
+  @Override
+  public N3Map request(HttpMethod method, String uri) {
+    return request(method.name(),uri);
   }
 
   @Override

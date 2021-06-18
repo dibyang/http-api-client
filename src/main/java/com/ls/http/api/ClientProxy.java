@@ -39,18 +39,7 @@ public class ClientProxy <T> implements InvocationHandler {
     return instance;
   }
 
-  private String getUri(Method method) {
-    StringBuilder uri = new StringBuilder();
-    Mapping ann = method.getDeclaringClass().getAnnotation(Mapping.class);
-    if (ann != null) {
-      uri.append(ann.value());
-    }
-    ann = method.getAnnotation(Mapping.class);
-    if (ann != null) {
-      uri.append(ann.value());
-    }
-    return uri.toString();
-  }
+
 
   private Map<String, Object> getRequestParams(Method method, List<ArgParm> argParams) {
     Map<String, Object> map = Maps.newHashMap();
@@ -108,20 +97,24 @@ public class ClientProxy <T> implements InvocationHandler {
 
   @Override
   public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
-    String uri = this.getUri(method);
-    List<ArgParm> argParams = this.getArgParms(method, args);
-    Map<String, Object> reqParams = this.getRequestParams(method, argParams);
-    final N3Map map = client.getRestClient().post(uri, reqParams);
-    final Class<?> returnType = method.getReturnType();
-    if(!returnType.isAssignableFrom(Map.class)){
-      Mapping ann = method.getAnnotation(Mapping.class);
-      String[] returnKey = ann.returnKey();
-      if(returnKey==null||returnKey.length==0) {
-        return Types.cast(map, returnType);
-      }else{
-        return map.getValue(returnType,returnKey).orElse(null);
+    Mapping mapping = method.getAnnotation(Mapping.class);
+    if(mapping!=null) {
+      String uri = mapping.value();
+      List<ArgParm> argParams = this.getArgParms(method, args);
+      Map<String, Object> reqParams = this.getRequestParams(method, argParams);
+      HttpMethod httpMethod = mapping.method();
+      final N3Map map = client.getRestClient().request(httpMethod, uri, reqParams);
+      final Class<?> returnType = method.getReturnType();
+      if (!returnType.isAssignableFrom(Map.class)) {
+        String[] returnKey = mapping.returnKey();
+        if (returnKey == null || returnKey.length == 0) {
+          return Types.cast(map, returnType);
+        } else {
+          return map.getValue(returnType, returnKey).orElse(null);
+        }
       }
+      return map;
     }
-    return map;
+    return null;
   }
 }
