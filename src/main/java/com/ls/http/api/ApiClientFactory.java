@@ -9,6 +9,9 @@ import java.util.List;
  * @date 2021/6/16
  */
 public interface ApiClientFactory {
+
+  ApiClientFactory disableSslVerification();
+
   /**
    * 获取RestClient
    * @param baseUri 基础uri
