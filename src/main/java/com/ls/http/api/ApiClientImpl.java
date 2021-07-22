@@ -29,13 +29,15 @@ public class ApiClientImpl implements ApiClient, RestClient {
   private int socketTimeout;
   private final CloseableHttpClient client;
   private final N3Map params = new N3Map();
+  private final PostChecker checker;
 
-  public ApiClientImpl(String baseUri, List<RequestHandle> requestHandles, int connectTimeout, int socketTimeout, CloseableHttpClient client) {
+  public ApiClientImpl(String baseUri, List<RequestHandle> requestHandles, int connectTimeout, int socketTimeout, CloseableHttpClient client, PostChecker checker) {
     this.baseUri = URI.create(baseUri);
     this.baseRequestHandles = requestHandles;
     this.connectTimeout = connectTimeout;
     this.socketTimeout = socketTimeout;
     this.client = client;
+    this.checker = checker;
   }
 
   @Override
@@ -82,6 +84,9 @@ public class ApiClientImpl implements ApiClient, RestClient {
     } catch (IOException e) {
       n3Map.put("e",e);
       LOG.warn(null,e);
+    }
+    if(checker!=null&&checker.postCheck(this,n3Map)){
+      n3Map = request(method, uri, requestHandle);
     }
     return n3Map;
   }

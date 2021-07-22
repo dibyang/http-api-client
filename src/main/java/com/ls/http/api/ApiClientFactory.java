@@ -29,5 +29,16 @@ public interface ApiClientFactory {
    */
   ApiClient getApiClient(String baseUri, List<Header> headers, RequestHandle... handles);
 
+  /**
+   *
+   * 获取RestClient
+   * @param baseUri 基础uri
+   * @param headers http头
+   * @param checker PostChecker
+   * @param handles 请求预处理器
+   * @return ApiClient
+   */
+  ApiClient getApiClient(String baseUri, List<Header> headers, PostChecker checker, RequestHandle... handles);
+
 
 }

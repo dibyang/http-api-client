@@ -117,11 +117,16 @@ public class ApiClientFactoryImpl implements ApiClientFactory {
 
   @Override
   public ApiClient getApiClient(String baseUri, List<Header> headers, RequestHandle... handles) {
+    return getApiClient(baseUri, headers, null, handles);
+  }
+
+  @Override
+  public ApiClient getApiClient(String baseUri, List<Header> headers, PostChecker checker, RequestHandle... handles) {
     List<RequestHandle> requestHandles = Lists.newArrayList(handles);
     if(headers!=null&&headers.size()>0){
       requestHandles.add(builder-> headers.forEach(header->builder.addHeader(header)));
     }
-    return new ApiClientImpl(baseUri,requestHandles,DEFAULT_CONNECT_TIMEOUT,DEFAULT_SOCKET_TIMEOUT,getHttpClient());
+    return new ApiClientImpl(baseUri,requestHandles,DEFAULT_CONNECT_TIMEOUT,DEFAULT_SOCKET_TIMEOUT,getHttpClient(), checker);
   }
 
 }
