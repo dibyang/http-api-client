@@ -25,17 +25,15 @@ public class ApiClientImpl implements ApiClient, RestClient {
   private final URI baseUri;
 
   private final List<RequestHandle> baseRequestHandles;
-  private int connectTimeout;
-  private int socketTimeout;
+  private final ApiClientFactoryConfig factoryConfig;
   private final CloseableHttpClient client;
   private final N3Map params = new N3Map();
   private final PostChecker checker;
 
-  public ApiClientImpl(String baseUri, List<RequestHandle> requestHandles, int connectTimeout, int socketTimeout, CloseableHttpClient client, PostChecker checker) {
+  public ApiClientImpl(String baseUri, List<RequestHandle> requestHandles, ApiClientFactoryConfig factoryConfig, CloseableHttpClient client, PostChecker checker) {
     this.baseUri = URI.create(baseUri);
     this.baseRequestHandles = requestHandles;
-    this.connectTimeout = connectTimeout;
-    this.socketTimeout = socketTimeout;
+    this.factoryConfig = factoryConfig;
     this.client = client;
     this.checker = checker;
   }
@@ -55,8 +53,8 @@ public class ApiClientImpl implements ApiClient, RestClient {
   public CloseableHttpResponse doRequest(String method, String uri, RequestHandle requestHandle) throws IOException {
     List<RequestHandle> requestHandles = Lists.newArrayList(baseRequestHandles);
     RequestConfig requestConfig = RequestConfig.custom()
-      .setConnectTimeout(connectTimeout)
-      .setSocketTimeout(socketTimeout).build();
+      .setConnectTimeout(factoryConfig.getConnTimeout())
+      .setSocketTimeout(factoryConfig.getSoTimeout()).build();
     final RequestBuilder requestBuilder = RequestBuilder.create(method)
       .setUri(baseUri.resolve(uri))
       .setConfig(requestConfig);

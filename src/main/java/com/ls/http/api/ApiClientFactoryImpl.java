@@ -34,13 +34,29 @@ public class ApiClientFactoryImpl implements ApiClientFactory {
   public final static int DEFAULT_CONNECT_TIMEOUT = 5 * 1000;
   public final static int DEFAULT_SOCKET_TIMEOUT = 5 * 1000;
   public final static String DEFAULT_CHARSET = "utf-8";
-  public final static SocketConfig DEFAULT_SOCKET_CONFIG = SocketConfig.custom()
-    .setSoKeepAlive(false)
-    .setSoLinger(1)
-    .setSoReuseAddress(true)
-    .setSoTimeout(DEFAULT_SOCKET_TIMEOUT)
-    .setTcpNoDelay(true)
-    .build();
+
+
+  private int connTimeout = DEFAULT_CONNECT_TIMEOUT;
+  private int soTimeout = DEFAULT_SOCKET_TIMEOUT;
+
+  public int getConnTimeout() {
+    return connTimeout;
+  }
+
+  public ApiClientFactory setConnTimeout(int connTimeout) {
+    this.connTimeout = connTimeout;
+    return this;
+  }
+
+  public int getSoTimeout() {
+    return soTimeout;
+  }
+
+  public ApiClientFactory setSoTimeout(int soTimeout) {
+    this.soTimeout = soTimeout;
+    return this;
+  }
+
   private PoolingHttpClientConnectionManager connManager = null;
 
   protected SSLContext createIgnoreVerifySSL() throws NoSuchAlgorithmException, KeyManagementException {
@@ -71,10 +87,17 @@ public class ApiClientFactoryImpl implements ApiClientFactory {
   }
 
   private  CloseableHttpClient getHttpClient() {
+    SocketConfig config = SocketConfig.custom()
+      .setSoKeepAlive(false)
+      .setSoLinger(1)
+      .setSoReuseAddress(true)
+      .setSoTimeout(soTimeout)
+      .setTcpNoDelay(true)
+      .build();
     return HttpClients.custom()
       .setConnectionManager(connManager)
-      .setConnectionTimeToLive(DEFAULT_CONNECT_TIMEOUT, TimeUnit.MILLISECONDS)
-      .setDefaultSocketConfig(DEFAULT_SOCKET_CONFIG)
+      .setConnectionTimeToLive(connTimeout, TimeUnit.MILLISECONDS)
+      .setDefaultSocketConfig(config)
       .build();
   }
 
@@ -126,7 +149,7 @@ public class ApiClientFactoryImpl implements ApiClientFactory {
     if(headers!=null&&headers.size()>0){
       requestHandles.add(builder-> headers.forEach(header->builder.addHeader(header)));
     }
-    return new ApiClientImpl(baseUri,requestHandles,DEFAULT_CONNECT_TIMEOUT,DEFAULT_SOCKET_TIMEOUT,getHttpClient(), checker);
+    return new ApiClientImpl(baseUri,requestHandles, this, getHttpClient(), checker);
   }
 
 }

@@ -8,7 +8,10 @@ import java.util.List;
  * @author yangzj
  * @date 2021/6/16
  */
-public interface ApiClientFactory {
+public interface ApiClientFactory extends ApiClientFactoryConfig {
+  ApiClientFactory setSoTimeout(int soTimeout);
+  ApiClientFactory setConnTimeout(int connTimeout);
+
 
   ApiClientFactory disableSslVerification();
 
