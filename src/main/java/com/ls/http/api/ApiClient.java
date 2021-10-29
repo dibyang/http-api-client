@@ -1,11 +1,6 @@
 package com.ls.http.api;
 
-import com.ls.luava.common.N3Map;
-import org.apache.http.client.ResponseHandler;
-import org.apache.http.client.methods.CloseableHttpResponse;
-
 import java.io.Closeable;
-import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 

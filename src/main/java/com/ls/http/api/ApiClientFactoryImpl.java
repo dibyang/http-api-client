@@ -38,6 +38,7 @@ public class ApiClientFactoryImpl implements ApiClientFactory {
 
   private int connTimeout = DEFAULT_CONNECT_TIMEOUT;
   private int soTimeout = DEFAULT_SOCKET_TIMEOUT;
+  private Registry<ConnectionSocketFactory> socketFactoryRegistry;
 
   public int getConnTimeout() {
     return connTimeout;
@@ -57,7 +58,6 @@ public class ApiClientFactoryImpl implements ApiClientFactory {
     return this;
   }
 
-  private PoolingHttpClientConnectionManager connManager = null;
 
   protected SSLContext createIgnoreVerifySSL() throws NoSuchAlgorithmException, KeyManagementException {
     SSLContext sc = SSLContext.getInstance("TLS");
@@ -87,6 +87,7 @@ public class ApiClientFactoryImpl implements ApiClientFactory {
   }
 
   private  CloseableHttpClient getHttpClient() {
+    PoolingHttpClientConnectionManager connManager = getConnectionManager();
     SocketConfig config = SocketConfig.custom()
       .setSoKeepAlive(false)
       .setSoLinger(1)
@@ -121,13 +122,12 @@ public class ApiClientFactoryImpl implements ApiClientFactory {
       };
       final SSLConnectionSocketFactory socketFactory = new SSLConnectionSocketFactory(sslcontext,hostnameVerifier);
 
-      Registry<ConnectionSocketFactory> socketFactoryRegistry = RegistryBuilder.<ConnectionSocketFactory>create()
+      socketFactoryRegistry = RegistryBuilder.<ConnectionSocketFactory>create()
         .register("http", PlainConnectionSocketFactory.INSTANCE)
         .register("https", socketFactory)
         .build();
-      connManager = new PoolingHttpClientConnectionManager(socketFactoryRegistry);
+
     } catch (Exception e) {
-      connManager = null;
       LOG.warn("",e);
     }
     return this;
@@ -149,7 +149,18 @@ public class ApiClientFactoryImpl implements ApiClientFactory {
     if(headers!=null&&headers.size()>0){
       requestHandles.add(builder-> headers.forEach(header->builder.addHeader(header)));
     }
-    return new ApiClientImpl(baseUri,requestHandles, this, getHttpClient(), checker);
+    PoolingHttpClientConnectionManager connManager = getConnectionManager();
+    return new ApiClientImpl(baseUri,requestHandles, this, connManager, checker);
+  }
+
+  private PoolingHttpClientConnectionManager getConnectionManager() {
+    PoolingHttpClientConnectionManager connManager = null;
+    if (socketFactoryRegistry != null) {
+      connManager = new PoolingHttpClientConnectionManager(socketFactoryRegistry);
+    }else{
+      connManager = new PoolingHttpClientConnectionManager();
+    }
+    return connManager;
   }
 
 }

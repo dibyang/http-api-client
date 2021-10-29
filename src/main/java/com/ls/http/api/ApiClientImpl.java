@@ -6,14 +6,18 @@ import com.ls.luava.common.N3Map;
 import org.apache.http.client.ResponseHandler;
 import org.apache.http.client.config.RequestConfig;
 import org.apache.http.client.methods.*;
+import org.apache.http.config.SocketConfig;
 import org.apache.http.impl.client.BasicResponseHandler;
 import org.apache.http.impl.client.CloseableHttpClient;
+import org.apache.http.impl.client.HttpClients;
+import org.apache.http.impl.conn.PoolingHttpClientConnectionManager;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.net.URI;
 import java.util.*;
+import java.util.concurrent.TimeUnit;
 
 /**
  * @author yangzj
@@ -26,15 +30,15 @@ public class ApiClientImpl implements ApiClient, RestClient {
 
   private final List<RequestHandle> baseRequestHandles;
   private final ApiClientFactoryConfig factoryConfig;
-  private final CloseableHttpClient client;
+  private final PoolingHttpClientConnectionManager connManager;
   private final N3Map params = new N3Map();
   private final PostChecker checker;
 
-  public ApiClientImpl(String baseUri, List<RequestHandle> requestHandles, ApiClientFactoryConfig factoryConfig, CloseableHttpClient client, PostChecker checker) {
+  public ApiClientImpl(String baseUri, List<RequestHandle> requestHandles, ApiClientFactoryConfig factoryConfig, PoolingHttpClientConnectionManager connManager, PostChecker checker) {
     this.baseUri = URI.create(baseUri);
     this.baseRequestHandles = requestHandles;
     this.factoryConfig = factoryConfig;
-    this.client = client;
+    this.connManager = connManager;
     this.checker = checker;
   }
 
@@ -47,6 +51,20 @@ public class ApiClientImpl implements ApiClient, RestClient {
     return baseRequestHandles;
   }
 
+  private  CloseableHttpClient getHttpClient() {
+    SocketConfig config = SocketConfig.custom()
+      .setSoKeepAlive(false)
+      .setSoLinger(1)
+      .setSoReuseAddress(true)
+      .setSoTimeout(factoryConfig.getSoTimeout())
+      .setTcpNoDelay(true)
+      .build();
+    return HttpClients.custom()
+      .setConnectionManager(connManager)
+      .setConnectionTimeToLive(factoryConfig.getConnTimeout(), TimeUnit.MILLISECONDS)
+      .setDefaultSocketConfig(config)
+      .build();
+  }
 
 
   @Override
@@ -64,7 +82,7 @@ public class ApiClientImpl implements ApiClient, RestClient {
     for (RequestHandle handle : requestHandles) {
       handle.handle(requestBuilder);
     }
-    return client.execute(requestBuilder.build());
+    return this.getHttpClient().execute(requestBuilder.build());
   }
 
   @Override
@@ -249,8 +267,8 @@ public class ApiClientImpl implements ApiClient, RestClient {
 
 
   @Override
-  public void close() throws IOException {
-    client.close();
+  public void close() {
+    connManager.close();
   }
 
   @Override

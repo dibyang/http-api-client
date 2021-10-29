@@ -1,6 +1,5 @@
 package com.ls.http.api;
 
-import com.google.common.base.Strings;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.ls.http.api.annotation.ExtParams;
@@ -30,7 +29,7 @@ public class ClientProxy <T> implements InvocationHandler {
   private final ApiClient client;
   private final T instance;
 
-  public ClientProxy(ApiClient client,Class<T> clazz) {
+  public ClientProxy(ApiClient client, Class<T> clazz) {
     this.client = client;
     instance = (T) Proxy.newProxyInstance(clazz.getClassLoader(), new Class[] { clazz }, this);
   }
