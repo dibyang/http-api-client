@@ -1,5 +1,6 @@
 package com.ls.http.api;
 
+import com.google.common.base.Strings;
 import com.google.common.collect.Lists;
 import com.ls.luava.common.Jsons;
 import com.ls.luava.common.N3Map;
@@ -96,7 +97,9 @@ public class ApiClientImpl implements ApiClient, RestClient {
     N3Map n3Map = new N3Map();
     try {
       String s = doRequest(method,uri, requestHandle,new BasicResponseHandler());
-      n3Map.putAll(Jsons.i.fromJson(s,N3Map.class));
+      if(!Strings.isNullOrEmpty(s)){
+        n3Map.putAll(Jsons.i.fromJson(s,N3Map.class));
+      }
     } catch (IOException e) {
       n3Map.put("e",e);
       LOG.warn(null,e);
