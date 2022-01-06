@@ -25,6 +25,8 @@ import java.util.concurrent.TimeUnit;
  * @date 2021/6/16
  */
 public class ApiClientImpl implements ApiClient, RestClient {
+
+  public static final String E = "e";
   static Logger LOG = LoggerFactory.getLogger(ApiClientImpl.class);
 
   private final URI baseUri;
@@ -89,6 +91,7 @@ public class ApiClientImpl implements ApiClient, RestClient {
   @Override
   public <T> T doRequest(String method, String uri, RequestHandle requestHandle, ResponseHandler<? extends T> responseHandler) throws IOException {
     final CloseableHttpResponse response = doRequest(method,uri, requestHandle);
+
     return responseHandler.handleResponse(response);
   }
 
@@ -96,12 +99,11 @@ public class ApiClientImpl implements ApiClient, RestClient {
   public N3Map request(String method, String uri, RequestHandle requestHandle) {
     N3Map n3Map = new N3Map();
     try {
-      String s = doRequest(method,uri, requestHandle,new BasicResponseHandler());
-      if(!Strings.isNullOrEmpty(s)){
-        n3Map.putAll(Jsons.i.fromJson(s,N3Map.class));
-      }
+      N3Map data = doRequest(method,uri, requestHandle,new N3MapResponseHandler());
+      n3Map.putAll(data);
     } catch (IOException e) {
-      n3Map.put("e",e);
+      n3Map.put(EXCEPTION,e);
+      n3Map.put(E,e);
       LOG.warn(null,e);
     }
     if(checker!=null&&checker.postCheck(this,n3Map)){
@@ -255,11 +257,6 @@ public class ApiClientImpl implements ApiClient, RestClient {
   @Override
   public N3Map delete(String uri) {
     return request(HttpDelete.METHOD_NAME,uri);
-  }
-
-  @Override
-  public <T> T getProxy(Class<T> clazz) {
-    return getApiProxy(clazz);
   }
 
   @Override

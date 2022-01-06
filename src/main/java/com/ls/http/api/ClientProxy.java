@@ -7,6 +7,9 @@ import com.ls.http.api.annotation.Mapping;
 import com.ls.http.api.annotation.Param;
 import com.ls.luava.common.N3Map;
 import com.ls.luava.common.Types;
+import org.apache.http.HttpEntity;
+import org.apache.http.HttpResponse;
+import org.apache.http.client.methods.CloseableHttpResponse;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -102,17 +105,31 @@ public class ClientProxy <T> implements InvocationHandler {
       List<ArgParm> argParams = this.getArgParms(method, args);
       Map<String, Object> reqParams = this.getRequestParams(method, argParams);
       HttpMethod httpMethod = mapping.method();
-      final N3Map map = client.getRestClient().request(httpMethod, uri, reqParams);
       final Class<?> returnType = method.getReturnType();
-      if (!returnType.isAssignableFrom(Map.class)) {
+
+      if(HttpEntity.class.isAssignableFrom(returnType)){
+        CloseableHttpResponse response = client.getRestClient().doRequest(httpMethod, uri, reqParams);
+        return response.getEntity();
+      }else if(HttpResponse.class.isAssignableFrom(returnType)){
+        CloseableHttpResponse response = client.getRestClient().doRequest(httpMethod, uri, reqParams);
+        return response;
+      }else{
+        final N3Map map = client.getRestClient().request(httpMethod, uri, reqParams);
+        Object e = map.get(ApiClient.EXCEPTION);
+        if(e instanceof Throwable){
+          throw (Throwable)e;
+        }
         String[] returnKey = mapping.returnKey();
         if (returnKey == null || returnKey.length == 0) {
-          return Types.cast(map, returnType);
+          if (map.containsKey(N3MapResponseHandler.RETURN__)) {
+            return map.getValue(returnType, N3MapResponseHandler.RETURN__).orElse(null);
+          } else {
+            return map.wrap(returnType);
+          }
         } else {
           return map.getValue(returnType, returnKey).orElse(null);
         }
       }
-      return map;
     }
     return null;
   }
