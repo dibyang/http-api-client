@@ -14,9 +14,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.lang.annotation.Annotation;
-import java.lang.reflect.InvocationHandler;
-import java.lang.reflect.Method;
-import java.lang.reflect.Proxy;
+import java.lang.reflect.*;
+import java.util.Collection;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.regex.Matcher;
@@ -105,7 +105,9 @@ public class ClientProxy <T> implements InvocationHandler {
       List<ArgParm> argParams = this.getArgParms(method, args);
       Map<String, Object> reqParams = this.getRequestParams(method, argParams);
       HttpMethod httpMethod = mapping.method();
-      final Class<?> returnType = method.getReturnType();
+
+      Class<?> returnType = method.getReturnType();
+      Type genericReturnType = method.getGenericReturnType();
 
       if(HttpEntity.class.isAssignableFrom(returnType)){
         CloseableHttpResponse response = client.getRestClient().doRequest(httpMethod, uri, reqParams);
@@ -119,18 +121,37 @@ public class ClientProxy <T> implements InvocationHandler {
         if(e instanceof Throwable){
           throw (Throwable)e;
         }
+
         String[] returnKey = mapping.returnKey();
         if (returnKey == null || returnKey.length == 0) {
           if (map.containsKey(N3MapResponseHandler.RETURN__)) {
-            return map.getValue(returnType, N3MapResponseHandler.RETURN__).orElse(null);
+            return getValue(map, returnType, genericReturnType, N3MapResponseHandler.RETURN__);
           } else {
-            return map.wrap(returnType);
+            return getValue(map, returnType, genericReturnType);
           }
         } else {
-          return map.getValue(returnType, returnKey).orElse(null);
+
+          return getValue(map, returnType, genericReturnType, returnKey);
         }
       }
     }
     return null;
+  }
+
+  private Object getValue(N3Map map, Class<?> returnType, Type genericReturnType, String... returnKey) {
+    if (returnKey != null && returnKey.length > 0) {
+      if(genericReturnType instanceof ParameterizedType){
+        ParameterizedType parameterizedType = (ParameterizedType)genericReturnType;
+        if(Collection.class.isAssignableFrom((Class<?>) parameterizedType.getRawType())){
+          List<?> list = map.getValues((Class<?>) parameterizedType.getActualTypeArguments()[0], returnKey);
+          return list;
+        }
+        return map;
+      }else {
+        return map.getValue(returnType, returnKey).orElse(null);
+      }
+    } else {
+      return map.wrap(returnType);
+    }
   }
 }
