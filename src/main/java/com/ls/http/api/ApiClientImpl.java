@@ -1,17 +1,14 @@
 package com.ls.http.api;
 
-import com.google.common.base.Strings;
 import com.google.common.collect.Lists;
-import com.ls.luava.common.Jsons;
 import com.ls.luava.common.N3Map;
 import org.apache.http.client.ResponseHandler;
 import org.apache.http.client.config.RequestConfig;
 import org.apache.http.client.methods.*;
 import org.apache.http.config.SocketConfig;
-import org.apache.http.impl.client.BasicResponseHandler;
+import org.apache.http.conn.HttpClientConnectionManager;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClients;
-import org.apache.http.impl.conn.PoolingHttpClientConnectionManager;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -33,16 +30,22 @@ public class ApiClientImpl implements ApiClient, RestClient {
 
   private final List<RequestHandle> baseRequestHandles;
   private final ApiClientFactoryConfig factoryConfig;
-  private final PoolingHttpClientConnectionManager connManager;
+  final HttpClientConnectionManager connManager;
   private final N3Map params = new N3Map();
   private final PostChecker checker;
+  private final ClientClose close;
 
-  public ApiClientImpl(String baseUri, List<RequestHandle> requestHandles, ApiClientFactoryConfig factoryConfig, PoolingHttpClientConnectionManager connManager, PostChecker checker) {
+  public ApiClientImpl(ClientClose close, String baseUri, List<RequestHandle> requestHandles, ApiClientFactoryConfig factoryConfig, HttpClientConnectionManager connManager, PostChecker checker) {
     this.baseUri = URI.create(baseUri);
     this.baseRequestHandles = requestHandles;
     this.factoryConfig = factoryConfig;
     this.connManager = connManager;
     this.checker = checker;
+    this.close = close;
+  }
+
+  public HttpClientConnectionManager getConnManager() {
+    return connManager;
   }
 
   @Override
@@ -268,7 +271,7 @@ public class ApiClientImpl implements ApiClient, RestClient {
 
   @Override
   public void close() {
-    connManager.close();
+    close.close(this);
   }
 
   @Override

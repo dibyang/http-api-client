@@ -18,6 +18,9 @@ public class N3MapResponseHandler extends AbstractResponseHandler<N3Map> {
   public N3Map handleEntity(HttpEntity entity) throws IOException {
     N3Map data = new N3Map();
     ContentType contentType = ContentType.get(entity);
+    if(contentType==null){
+      contentType = ContentType.DEFAULT_BINARY;
+    }
     if(ContentType.APPLICATION_JSON.getMimeType().equals(contentType.getMimeType())){
       String json = EntityUtils.toString(entity);
       data.putAll(Jsons.i.fromJson(json,N3Map.class));
@@ -27,7 +30,9 @@ public class N3MapResponseHandler extends AbstractResponseHandler<N3Map> {
     }else{
       int length = (int)entity.getContentLength();
       byte[] buffer = new byte[length];
-      entity.getContent().read(buffer);
+      if(length>0){
+        entity.getContent().read(buffer);
+      }
       data.put(RETURN__,buffer);
     }
     return data;

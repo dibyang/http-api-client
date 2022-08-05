@@ -1,6 +1,7 @@
 package com.ls.http.api;
 
 import com.ls.luava.common.N3Map;
+import org.apache.http.conn.HttpClientConnectionManager;
 
 /**
  * @author yangzj
@@ -8,4 +9,5 @@ import com.ls.luava.common.N3Map;
  */
 public interface ClientContext {
   N3Map getParams();
+  HttpClientConnectionManager getConnManager();
 }

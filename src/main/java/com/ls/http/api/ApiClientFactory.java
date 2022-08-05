@@ -9,6 +9,7 @@ import java.util.List;
  * @date 2021/6/16
  */
 public interface ApiClientFactory extends ApiClientFactoryConfig {
+  void shutdown();
   ApiClientFactory setSoTimeout(int soTimeout);
   ApiClientFactory setConnTimeout(int connTimeout);
 

@@ -5,6 +5,7 @@ import org.apache.http.Header;
 import org.apache.http.config.Registry;
 import org.apache.http.config.RegistryBuilder;
 import org.apache.http.config.SocketConfig;
+import org.apache.http.conn.HttpClientConnectionManager;
 import org.apache.http.conn.socket.ConnectionSocketFactory;
 import org.apache.http.conn.socket.PlainConnectionSocketFactory;
 import org.apache.http.conn.ssl.SSLConnectionSocketFactory;
@@ -16,6 +17,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.net.ssl.*;
+import java.io.Closeable;
 import java.io.IOException;
 import java.security.KeyManagementException;
 import java.security.NoSuchAlgorithmException;
@@ -28,7 +30,7 @@ import java.util.concurrent.TimeUnit;
  * @author yangzj
  * @date 2021/6/16
  */
-public class ApiClientFactoryImpl implements ApiClientFactory {
+public class ApiClientFactoryImpl implements ApiClientFactory, ClientClose {
   static Logger LOG = LoggerFactory.getLogger(ApiClientFactory.class);
 
   public final static int DEFAULT_CONNECT_TIMEOUT = 5 * 1000;
@@ -39,6 +41,8 @@ public class ApiClientFactoryImpl implements ApiClientFactory {
   private int connTimeout = DEFAULT_CONNECT_TIMEOUT;
   private int soTimeout = DEFAULT_SOCKET_TIMEOUT;
   private Registry<ConnectionSocketFactory> socketFactoryRegistry;
+
+  private final List<ApiClient> clients = Lists.newCopyOnWriteArrayList();
 
   public int getConnTimeout() {
     return connTimeout;
@@ -51,6 +55,29 @@ public class ApiClientFactoryImpl implements ApiClientFactory {
 
   public int getSoTimeout() {
     return soTimeout;
+  }
+
+  @Override
+  public void close(ApiClient client) {
+    if(client!=null){
+      try {
+        clients.remove(client);
+        ((Closeable)client.getConnManager()).close();
+      } catch (IOException e) {
+        LOG.warn("",e);
+      }
+    }
+  }
+
+  @Override
+  public void shutdown() {
+    for (ApiClient client : clients) {
+      try {
+        client.close();
+      } catch (IOException e) {
+        LOG.warn("",e);
+      }
+    }
   }
 
   public ApiClientFactory setSoTimeout(int soTimeout) {
@@ -87,7 +114,7 @@ public class ApiClientFactoryImpl implements ApiClientFactory {
   }
 
   private  CloseableHttpClient getHttpClient() {
-    PoolingHttpClientConnectionManager connManager = getConnectionManager();
+    HttpClientConnectionManager connManager = getConnectionManager();
     SocketConfig config = SocketConfig.custom()
       .setSoKeepAlive(false)
       .setSoLinger(1)
@@ -149,11 +176,11 @@ public class ApiClientFactoryImpl implements ApiClientFactory {
     if(headers!=null&&headers.size()>0){
       requestHandles.add(builder-> headers.forEach(header->builder.addHeader(header)));
     }
-    PoolingHttpClientConnectionManager connManager = getConnectionManager();
-    return new ApiClientImpl(baseUri,requestHandles, this, connManager, checker);
+    HttpClientConnectionManager connManager = getConnectionManager();
+    return new ApiClientImpl(this, baseUri,requestHandles, this, connManager, checker);
   }
 
-  private PoolingHttpClientConnectionManager getConnectionManager() {
+  private HttpClientConnectionManager getConnectionManager() {
     PoolingHttpClientConnectionManager connManager = null;
     if (socketFactoryRegistry != null) {
       connManager = new PoolingHttpClientConnectionManager(socketFactoryRegistry);
