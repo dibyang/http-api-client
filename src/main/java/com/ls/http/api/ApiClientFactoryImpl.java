@@ -1,18 +1,21 @@
 package com.ls.http.api;
 
 import com.google.common.collect.Lists;
-import org.apache.http.Header;
-import org.apache.http.config.Registry;
-import org.apache.http.config.RegistryBuilder;
-import org.apache.http.config.SocketConfig;
-import org.apache.http.conn.HttpClientConnectionManager;
-import org.apache.http.conn.socket.ConnectionSocketFactory;
-import org.apache.http.conn.socket.PlainConnectionSocketFactory;
-import org.apache.http.conn.ssl.SSLConnectionSocketFactory;
-import org.apache.http.conn.ssl.X509HostnameVerifier;
-import org.apache.http.impl.client.CloseableHttpClient;
-import org.apache.http.impl.client.HttpClients;
-import org.apache.http.impl.conn.PoolingHttpClientConnectionManager;
+import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
+import org.apache.hc.client5.http.impl.classic.HttpClients;
+import org.apache.hc.client5.http.impl.io.PoolingHttpClientConnectionManager;
+import org.apache.hc.client5.http.io.HttpClientConnectionManager;
+import org.apache.hc.client5.http.socket.ConnectionSocketFactory;
+import org.apache.hc.client5.http.socket.PlainConnectionSocketFactory;
+import org.apache.hc.client5.http.ssl.NoopHostnameVerifier;
+import org.apache.hc.client5.http.ssl.SSLConnectionSocketFactory;
+import org.apache.hc.core5.http.Header;
+import org.apache.hc.core5.http.config.Registry;
+
+import org.apache.hc.core5.http.config.RegistryBuilder;
+import org.apache.hc.core5.http.io.SocketConfig;
+import org.apache.hc.core5.util.TimeValue;
+import org.apache.hc.core5.util.Timeout;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -113,21 +116,6 @@ public class ApiClientFactoryImpl implements ApiClientFactory, ClientClose {
     return sc;
   }
 
-  private  CloseableHttpClient getHttpClient() {
-    HttpClientConnectionManager connManager = getConnectionManager();
-    SocketConfig config = SocketConfig.custom()
-      .setSoKeepAlive(false)
-      .setSoLinger(1)
-      .setSoReuseAddress(true)
-      .setSoTimeout(soTimeout)
-      .setTcpNoDelay(true)
-      .build();
-    return HttpClients.custom()
-      .setConnectionManager(connManager)
-      .setConnectionTimeToLive(connTimeout, TimeUnit.MILLISECONDS)
-      .setDefaultSocketConfig(config)
-      .build();
-  }
 
   @Override
   public ApiClientFactory disableSslVerification() {
@@ -136,17 +124,7 @@ public class ApiClientFactoryImpl implements ApiClientFactory, ClientClose {
       SSLContext sslcontext = createIgnoreVerifySSL();
 
       //设置协议http和https对应的处理socket链接工厂的对象
-      HostnameVerifier hostnameVerifier = new X509HostnameVerifier() {
-        public boolean verify(String hostname, SSLSession session) {
-          return true;
-        }
-        public void verify(String arg0, SSLSocket arg1) throws IOException {
-        }
-        public void verify(String arg0, X509Certificate arg1) throws SSLException {
-        }
-        public void verify(String arg0, String[] arg1, String[] arg2) throws SSLException {
-        }
-      };
+      HostnameVerifier hostnameVerifier = new NoopHostnameVerifier();
       final SSLConnectionSocketFactory socketFactory = new SSLConnectionSocketFactory(sslcontext,hostnameVerifier);
 
       socketFactoryRegistry = RegistryBuilder.<ConnectionSocketFactory>create()

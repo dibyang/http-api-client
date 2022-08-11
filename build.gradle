@@ -67,7 +67,7 @@ repositories {
 
 dependencies {
   compile("com.ls.luava:luava:${luava_version}")
-  compile("org.apache.httpcomponents:httpclient:${httpclient_version}")
+  compile("org.apache.httpcomponents.client5:httpclient5:${httpclient_version}")
   testImplementation 'org.junit.jupiter:junit-jupiter-api:5.7.0'
   testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine:5.7.0'
 }

@@ -1,6 +1,7 @@
 package com.ls.http.api;
 
-import org.apache.http.Header;
+
+import org.apache.hc.core5.http.Header;
 
 import java.util.List;
 

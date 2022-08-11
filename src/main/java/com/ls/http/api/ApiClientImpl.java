@@ -2,13 +2,19 @@ package com.ls.http.api;
 
 import com.google.common.collect.Lists;
 import com.ls.luava.common.N3Map;
-import org.apache.http.client.ResponseHandler;
-import org.apache.http.client.config.RequestConfig;
-import org.apache.http.client.methods.*;
-import org.apache.http.config.SocketConfig;
-import org.apache.http.conn.HttpClientConnectionManager;
-import org.apache.http.impl.client.CloseableHttpClient;
-import org.apache.http.impl.client.HttpClients;
+import org.apache.hc.client5.http.classic.methods.*;
+import org.apache.hc.client5.http.config.RequestConfig;
+import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
+import org.apache.hc.client5.http.impl.classic.CloseableHttpResponse;
+import org.apache.hc.client5.http.impl.classic.HttpClients;
+import org.apache.hc.client5.http.io.HttpClientConnectionManager;
+import org.apache.hc.core5.http.ClassicHttpRequest;
+import org.apache.hc.core5.http.ParseException;
+import org.apache.hc.core5.http.io.SocketConfig;
+import org.apache.hc.core5.http.io.support.ClassicRequestBuilder;
+import org.apache.hc.core5.http.message.BasicClassicHttpRequest;
+import org.apache.hc.core5.util.TimeValue;
+import org.apache.hc.core5.util.Timeout;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -57,18 +63,13 @@ public class ApiClientImpl implements ApiClient, RestClient {
     return baseRequestHandles;
   }
 
-  private  CloseableHttpClient getHttpClient() {
-    SocketConfig config = SocketConfig.custom()
-      .setSoKeepAlive(false)
-      .setSoLinger(1)
-      .setSoReuseAddress(true)
-      .setSoTimeout(factoryConfig.getSoTimeout())
-      .setTcpNoDelay(true)
-      .build();
+  private CloseableHttpClient getHttpClient() {
+    RequestConfig requestConfig = RequestConfig.custom()
+        .setConnectTimeout(Timeout.of(factoryConfig.getConnTimeout(),TimeUnit.MILLISECONDS))
+        .setConnectionRequestTimeout(Timeout.of(factoryConfig.getSoTimeout(),TimeUnit.MILLISECONDS)).build();
     return HttpClients.custom()
       .setConnectionManager(connManager)
-      .setConnectionTimeToLive(factoryConfig.getConnTimeout(), TimeUnit.MILLISECONDS)
-      .setDefaultSocketConfig(config)
+        .setDefaultRequestConfig(requestConfig)
       .build();
   }
 
@@ -76,23 +77,21 @@ public class ApiClientImpl implements ApiClient, RestClient {
   @Override
   public CloseableHttpResponse doRequest(String method, String uri, RequestHandle requestHandle) throws IOException {
     List<RequestHandle> requestHandles = Lists.newArrayList(baseRequestHandles);
-    RequestConfig requestConfig = RequestConfig.custom()
-      .setConnectTimeout(factoryConfig.getConnTimeout())
-      .setSocketTimeout(factoryConfig.getSoTimeout()).build();
-    final RequestBuilder requestBuilder = RequestBuilder.create(method)
-      .setUri(baseUri.resolve(uri))
-      .setConfig(requestConfig);
+
+    final ClassicRequestBuilder requestBuilder = ClassicRequestBuilder.create(method)
+      .setUri(baseUri.resolve(uri));
     if(requestHandle!=null){
       requestHandles.add(requestHandle);
     }
     for (RequestHandle handle : requestHandles) {
       handle.handle(requestBuilder);
     }
-    return this.getHttpClient().execute(requestBuilder.build());
+    ClassicHttpRequest build = requestBuilder.build();
+    return this.getHttpClient().execute(build);
   }
 
   @Override
-  public <T> T doRequest(String method, String uri, RequestHandle requestHandle, ResponseHandler<? extends T> responseHandler) throws IOException {
+  public <T> T doRequest(String method, String uri, RequestHandle requestHandle, ResponseHandler<? extends T> responseHandler) throws IOException, ParseException {
     final CloseableHttpResponse response = doRequest(method,uri, requestHandle);
 
     return responseHandler.handleResponse(response);
@@ -104,7 +103,7 @@ public class ApiClientImpl implements ApiClient, RestClient {
     try {
       N3Map data = doRequest(method,uri, requestHandle,new N3MapResponseHandler());
       n3Map.putAll(data);
-    } catch (IOException e) {
+    } catch (IOException | ParseException e) {
       n3Map.put(EXCEPTION,e);
       n3Map.put(E,e);
       LOG.warn(null,e);
@@ -152,7 +151,7 @@ public class ApiClientImpl implements ApiClient, RestClient {
   }
 
   @Override
-  public <T> T doRequest(String method, String uri, Map<String, Object> params, ResponseHandler<? extends T> responseHandler) throws IOException {
+  public <T> T doRequest(String method, String uri, Map<String, Object> params, ResponseHandler<? extends T> responseHandler) throws IOException, ParseException {
     final CloseableHttpResponse response = doRequest(method,uri, params);
     return responseHandler.handleResponse(response);
   }
@@ -163,7 +162,7 @@ public class ApiClientImpl implements ApiClient, RestClient {
   }
 
   @Override
-  public <T> T doRequest(HttpMethod method, String uri, RequestHandle requestHandle, ResponseHandler<? extends T> responseHandler) throws IOException {
+  public <T> T doRequest(HttpMethod method, String uri, RequestHandle requestHandle, ResponseHandler<? extends T> responseHandler) throws IOException, ParseException {
     return doRequest(method.name(),uri,requestHandle,responseHandler);
   }
 
@@ -178,7 +177,7 @@ public class ApiClientImpl implements ApiClient, RestClient {
   }
 
   @Override
-  public <T> T doRequest(HttpMethod method, String uri, Map<String, Object> params, ResponseHandler<? extends T> responseHandler) throws IOException {
+  public <T> T doRequest(HttpMethod method, String uri, Map<String, Object> params, ResponseHandler<? extends T> responseHandler) throws IOException, ParseException {
     return doRequest(method.name(),uri,params,responseHandler);
   }
 

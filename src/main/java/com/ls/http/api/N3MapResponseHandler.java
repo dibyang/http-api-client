@@ -2,10 +2,11 @@ package com.ls.http.api;
 
 import com.ls.luava.common.Jsons;
 import com.ls.luava.common.N3Map;
-import org.apache.http.HttpEntity;
-import org.apache.http.entity.ContentType;
-import org.apache.http.impl.client.AbstractResponseHandler;
-import org.apache.http.util.EntityUtils;
+import org.apache.hc.core5.http.ContentType;
+import org.apache.hc.core5.http.HttpEntity;
+import org.apache.hc.core5.http.ParseException;
+import org.apache.hc.core5.http.io.entity.EntityUtils;
+
 
 import java.io.IOException;
 
@@ -15,9 +16,9 @@ public class N3MapResponseHandler extends AbstractResponseHandler<N3Map> {
   public static final String RETURN__ = "__RETURN__";
 
   @Override
-  public N3Map handleEntity(HttpEntity entity) throws IOException {
+  public N3Map handleEntity(HttpEntity entity) throws IOException, ParseException {
     N3Map data = new N3Map();
-    ContentType contentType = ContentType.get(entity);
+    ContentType contentType = ContentType.parse(entity.getContentType());
     if(contentType==null){
       contentType = ContentType.DEFAULT_BINARY;
     }
