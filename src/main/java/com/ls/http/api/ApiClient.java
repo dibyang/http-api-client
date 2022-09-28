@@ -22,4 +22,6 @@ public interface ApiClient extends Closeable, ClientContext {
    * @return ApiProxy
    */
   <T> T getApiProxy(Class<T> clazz);
+  void setIface(String iface);
+  String getIface();
 }

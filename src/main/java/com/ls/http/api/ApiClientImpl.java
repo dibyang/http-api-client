@@ -4,6 +4,7 @@ import com.google.common.collect.Lists;
 import com.ls.luava.common.N3Map;
 import org.apache.hc.client5.http.classic.methods.*;
 import org.apache.hc.client5.http.config.RequestConfig;
+import org.apache.hc.client5.http.impl.DefaultSchemePortResolver;
 import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
 import org.apache.hc.client5.http.impl.classic.CloseableHttpResponse;
 import org.apache.hc.client5.http.impl.classic.HttpClients;
@@ -40,6 +41,8 @@ public class ApiClientImpl implements ApiClient, RestClient {
   private final N3Map params = new N3Map();
   private final PostChecker checker;
   private final ClientClose close;
+  private final IFaceRoutePlanner routePlanner = new IFaceRoutePlanner(DefaultSchemePortResolver.INSTANCE);
+
 
   public ApiClientImpl(ClientClose close, String baseUri, List<RequestHandle> requestHandles, ApiClientFactoryConfig factoryConfig, HttpClientConnectionManager connManager, PostChecker checker) {
     this.baseUri = URI.create(baseUri);
@@ -69,6 +72,7 @@ public class ApiClientImpl implements ApiClient, RestClient {
         .setConnectionRequestTimeout(Timeout.of(factoryConfig.getSoTimeout(),TimeUnit.MILLISECONDS)).build();
     return HttpClients.custom()
       .setConnectionManager(connManager)
+        .setRoutePlanner(routePlanner)
         .setDefaultRequestConfig(requestConfig)
       .build();
   }
@@ -265,6 +269,16 @@ public class ApiClientImpl implements ApiClient, RestClient {
   public <T> T getApiProxy(Class<T> clazz) {
     ClientProxy<T> proxy = new ClientProxy<T>(this,clazz);
     return proxy.getInstance();
+  }
+
+  @Override
+  public void setIface(String iface) {
+    routePlanner.setIface(iface);
+  }
+
+  @Override
+  public String getIface() {
+    return routePlanner.getIface();
   }
 
 
