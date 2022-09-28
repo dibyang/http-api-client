@@ -22,6 +22,16 @@ public interface ApiClient extends Closeable, ClientContext {
    * @return ApiProxy
    */
   <T> T getApiProxy(Class<T> clazz);
+
+  /**
+   * IPV6 指定使用的网卡
+   * @param iface
+   */
   void setIface(String iface);
+
+  /**
+   * IPV6 获取指定使用的网卡
+   * @return
+   */
   String getIface();
 }
