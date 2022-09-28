@@ -48,10 +48,11 @@ public class IFaceRoutePlanner implements HttpRoutePlanner {
     String hostName = target.getHostName();
     if(hostName.startsWith("[")&&hostName.endsWith("]")){
       hostName = hostName.substring(1,hostName.length()-1);
+      if(!Strings.isNullOrEmpty(iface)){
+        target = new HttpHost(target.getSchemeName(), getInetAddress(hostName,iface) ,target.getPort());
+      }
     }
-    if(!Strings.isNullOrEmpty(iface)){
-      target = new HttpHost(target.getSchemeName(), getInetAddress(hostName,iface) ,target.getPort());
-    }
+
     final boolean secure = target.getSchemeName().equalsIgnoreCase("https");
     if (proxy == null) {
       return new HttpRoute(target, determineLocalAddress(target, context), secure);
