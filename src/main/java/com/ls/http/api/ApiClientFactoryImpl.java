@@ -1,10 +1,11 @@
 package com.ls.http.api;
 
+import com.google.common.base.Strings;
 import com.google.common.collect.Lists;
-import org.apache.hc.client5.http.impl.DefaultSchemePortResolver;
+import com.google.common.collect.Maps;
+import com.ls.luava.common.N3Map;
 import org.apache.hc.client5.http.impl.io.PoolingHttpClientConnectionManager;
 import org.apache.hc.client5.http.io.HttpClientConnectionManager;
-import org.apache.hc.client5.http.routing.HttpRoutePlanner;
 import org.apache.hc.client5.http.socket.ConnectionSocketFactory;
 import org.apache.hc.client5.http.socket.PlainConnectionSocketFactory;
 import org.apache.hc.client5.http.ssl.NoopHostnameVerifier;
@@ -19,18 +20,18 @@ import javax.net.ssl.HostnameVerifier;
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.TrustManager;
 import javax.net.ssl.X509TrustManager;
-import java.io.Closeable;
 import java.io.IOException;
 import java.security.KeyManagementException;
 import java.security.NoSuchAlgorithmException;
 import java.security.cert.CertificateException;
 import java.util.List;
+import java.util.Map;
 
 /**
  * @author yangzj
  * @date 2021/6/16
  */
-public class ApiClientFactoryImpl implements ApiClientFactory, ClientClose {
+public class ApiClientFactoryImpl implements ApiClientFactory {
   static Logger LOG = LoggerFactory.getLogger(ApiClientFactory.class);
 
   public final static int DEFAULT_CONNECT_TIMEOUT = 5 * 1000;
@@ -41,8 +42,12 @@ public class ApiClientFactoryImpl implements ApiClientFactory, ClientClose {
   private int connTimeout = DEFAULT_CONNECT_TIMEOUT;
   private int soTimeout = DEFAULT_SOCKET_TIMEOUT;
   private Registry<ConnectionSocketFactory> socketFactoryRegistry;
+  private final Map<Class,List<ResponseHandler>> responseHandlerMap = Maps.newConcurrentMap();
 
-  private final List<ApiClient> clients = Lists.newCopyOnWriteArrayList();
+
+  public ApiClientFactoryImpl() {
+    this.addResponseHandler(N3Map.class,new N3MapResponseHandler());
+  }
 
   public int getConnTimeout() {
     return connTimeout;
@@ -57,26 +62,56 @@ public class ApiClientFactoryImpl implements ApiClientFactory, ClientClose {
     return soTimeout;
   }
 
+
   @Override
-  public void close(ApiClient client) {
-    if(client!=null){
-      try {
-        clients.remove(client);
-        ((Closeable)client.getConnManager()).close();
-      } catch (IOException e) {
-        LOG.warn("",e);
+  public <T> ResponseHandler<T> getResponseHandler(Class<T> type, String name) {
+    List<ResponseHandler> responseHandlers = responseHandlerMap.get(type);
+    if (responseHandlers != null) {
+      if(Strings.isNullOrEmpty(name)) {
+        return responseHandlers.stream().findFirst().orElse(null);
+      }else{
+        return responseHandlers.stream().filter(h->h.getClass().getSimpleName()
+            .equals(name)).findFirst().orElse(null);
+      }
+    }
+    return null;
+  }
+
+  @Override
+  public <T> boolean addResponseHandler(Class<T> type, ResponseHandler<T> responseHandler) {
+    if(responseHandler!=null) {
+      synchronized (responseHandlerMap) {
+        List<ResponseHandler> responseHandlers = responseHandlerMap.get(type);
+        if (responseHandlers == null) {
+          responseHandlers = Lists.newArrayList();
+          responseHandlerMap.put(type, responseHandlers);
+        }
+        responseHandlers.add(responseHandler);
+        return true;
+      }
+    }
+    return false;
+  }
+
+  @Override
+  public <T> void removeResponseHandler(Class<T> type, ResponseHandler<T> responseHandler) {
+    if(responseHandler!=null) {
+      synchronized (responseHandlerMap) {
+        List<ResponseHandler> responseHandlers = responseHandlerMap.get(type);
+        if (responseHandlers != null) {
+          responseHandlers.remove(responseHandler);
+        }
       }
     }
   }
 
+
   @Override
   public void shutdown() {
-    for (ApiClient client : clients) {
-      try {
-        client.close();
-      } catch (IOException e) {
-        LOG.warn("",e);
-      }
+    try {
+      getConnectionManager().close();
+    } catch (IOException e) {
+      LOG.warn("",e);
     }
   }
 
@@ -141,18 +176,18 @@ public class ApiClientFactoryImpl implements ApiClientFactory, ClientClose {
   }
 
   @Override
-  public ApiClient getApiClient(String baseUri, List<Header> headers, RequestHandle... handles) {
+  public ApiClient getApiClient(String baseUri, List<Header> headers, RequestHandler... handles) {
     return getApiClient(baseUri, headers, null, handles);
   }
 
   @Override
-  public ApiClient getApiClient(String baseUri, List<Header> headers, PostChecker checker, RequestHandle... handles) {
-    List<RequestHandle> requestHandles = Lists.newArrayList(handles);
+  public ApiClient getApiClient(String baseUri, List<Header> headers, PostChecker checker, RequestHandler... handles) {
+    List<RequestHandler> requestHandlers = Lists.newArrayList(handles);
     if(headers!=null&&headers.size()>0){
-      requestHandles.add(builder-> headers.forEach(header->builder.addHeader(header)));
+      requestHandlers.add(builder-> headers.forEach(header->builder.addHeader(header)));
     }
     HttpClientConnectionManager connManager = getConnectionManager();
-    return new ApiClientImpl(this, baseUri,requestHandles, this, connManager, checker);
+    return new ApiClientImpl(baseUri, requestHandlers, this, connManager, checker);
   }
 
   private HttpClientConnectionManager getConnectionManager() {

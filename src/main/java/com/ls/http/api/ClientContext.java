@@ -11,4 +11,5 @@ import org.apache.hc.client5.http.io.HttpClientConnectionManager;
 public interface ClientContext {
   N3Map getParams();
   HttpClientConnectionManager getConnManager();
+  ApiClientFactoryConfig getFactoryConfig();
 }

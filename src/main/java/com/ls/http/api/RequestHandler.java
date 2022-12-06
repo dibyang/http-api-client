@@ -11,7 +11,7 @@ import java.io.IOException;
  * @date 2021/6/16
  */
 @FunctionalInterface
-public interface RequestHandle {
+public interface RequestHandler {
   /**
    * 请求预处理
    * @param builder 请求构建器

@@ -11,10 +11,7 @@ import org.apache.hc.client5.http.impl.classic.HttpClients;
 import org.apache.hc.client5.http.io.HttpClientConnectionManager;
 import org.apache.hc.core5.http.ClassicHttpRequest;
 import org.apache.hc.core5.http.ParseException;
-import org.apache.hc.core5.http.io.SocketConfig;
 import org.apache.hc.core5.http.io.support.ClassicRequestBuilder;
-import org.apache.hc.core5.http.message.BasicClassicHttpRequest;
-import org.apache.hc.core5.util.TimeValue;
 import org.apache.hc.core5.util.Timeout;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -35,22 +32,20 @@ public class ApiClientImpl implements ApiClient, RestClient {
 
   private final URI baseUri;
 
-  private final List<RequestHandle> baseRequestHandles;
+  private final List<RequestHandler> baseRequestHandlers;
   private final ApiClientFactoryConfig factoryConfig;
   final HttpClientConnectionManager connManager;
   private final N3Map params = new N3Map();
   private final PostChecker checker;
-  private final ClientClose close;
   private final IFaceRoutePlanner routePlanner = new IFaceRoutePlanner(DefaultSchemePortResolver.INSTANCE);
 
 
-  public ApiClientImpl(ClientClose close, String baseUri, List<RequestHandle> requestHandles, ApiClientFactoryConfig factoryConfig, HttpClientConnectionManager connManager, PostChecker checker) {
+  public ApiClientImpl(String baseUri, List<RequestHandler> requestHandlers, ApiClientFactoryConfig factoryConfig, HttpClientConnectionManager connManager, PostChecker checker) {
     this.baseUri = URI.create(baseUri);
-    this.baseRequestHandles = requestHandles;
+    this.baseRequestHandlers = requestHandlers;
     this.factoryConfig = factoryConfig;
     this.connManager = connManager;
     this.checker = checker;
-    this.close = close;
   }
 
   public HttpClientConnectionManager getConnManager() {
@@ -58,12 +53,17 @@ public class ApiClientImpl implements ApiClient, RestClient {
   }
 
   @Override
+  public ApiClientFactoryConfig getFactoryConfig() {
+    return factoryConfig;
+  }
+
+  @Override
   public RestClient getRestClient() {
     return this;
   }
 
-  public List<RequestHandle> getBaseRequestHandles() {
-    return baseRequestHandles;
+  public List<RequestHandler> getBaseRequestHandles() {
+    return baseRequestHandlers;
   }
 
   private CloseableHttpClient getHttpClient() {
@@ -78,34 +78,36 @@ public class ApiClientImpl implements ApiClient, RestClient {
   }
 
 
-  @Override
-  public CloseableHttpResponse doRequest(String method, String uri, RequestHandle requestHandle) throws IOException {
-    List<RequestHandle> requestHandles = Lists.newArrayList(baseRequestHandles);
+
+  protected CloseableHttpResponse doRequest(String method, String uri, RequestHandler requestHandler) throws IOException {
+    List<RequestHandler> requestHandlers = Lists.newArrayList(baseRequestHandlers);
 
     final ClassicRequestBuilder requestBuilder = ClassicRequestBuilder.create(method)
       .setUri(baseUri.resolve(uri));
-    if(requestHandle!=null){
-      requestHandles.add(requestHandle);
+    if(requestHandler !=null){
+      requestHandlers.add(requestHandler);
     }
-    for (RequestHandle handle : requestHandles) {
+    for (RequestHandler handle : requestHandlers) {
       handle.handle(requestBuilder);
     }
     ClassicHttpRequest build = requestBuilder.build();
-    return this.getHttpClient().execute(build);
+    CloseableHttpClient httpClient = this.getHttpClient();
+    return httpClient.execute(build);
+
   }
 
   @Override
-  public <T> T doRequest(String method, String uri, RequestHandle requestHandle, ResponseHandler<? extends T> responseHandler) throws IOException, ParseException {
-    final CloseableHttpResponse response = doRequest(method,uri, requestHandle);
-
-    return responseHandler.handleResponse(response);
+  public <T> T doRequest(String method, String uri, RequestHandler requestHandler, ResponseHandler<? extends T> responseHandler) throws IOException, ParseException {
+    try(CloseableHttpResponse response = doRequest(method,uri, requestHandler)) {
+      return responseHandler.handleResponse(response);
+    }
   }
 
   @Override
-  public N3Map request(String method, String uri, RequestHandle requestHandle) {
+  public N3Map request(String method, String uri, RequestHandler requestHandler) {
     N3Map n3Map = new N3Map();
     try {
-      N3Map data = doRequest(method,uri, requestHandle,new N3MapResponseHandler());
+      N3Map data = doRequest(method,uri, requestHandler,new N3MapResponseHandler());
       n3Map.putAll(data);
     } catch (IOException | ParseException e) {
       n3Map.put(EXCEPTION,e);
@@ -113,17 +115,17 @@ public class ApiClientImpl implements ApiClient, RestClient {
       LOG.warn(null,e);
     }
     if(checker!=null&&checker.postCheck(this,n3Map)){
-      n3Map = request(method, uri, requestHandle);
+      n3Map = request(method, uri, requestHandler);
     }
     return n3Map;
   }
 
-  @Override
-  public CloseableHttpResponse doRequest(String method, String uri, Map<String, Object> params) throws IOException {
+
+  protected CloseableHttpResponse doRequest(String method, String uri, Map<String, Object> params) throws IOException {
     return doRequest(method,uri,getParamsHandle(params));
   }
 
-  public RequestHandle getParamsHandle(Map<String, Object> params) {
+  public RequestHandler getParamsHandle(Map<String, Object> params) {
     return builder -> {
       if(params!=null) {
         for (String name : params.keySet()) {
@@ -156,27 +158,28 @@ public class ApiClientImpl implements ApiClient, RestClient {
 
   @Override
   public <T> T doRequest(String method, String uri, Map<String, Object> params, ResponseHandler<? extends T> responseHandler) throws IOException, ParseException {
-    final CloseableHttpResponse response = doRequest(method,uri, params);
-    return responseHandler.handleResponse(response);
+    try(CloseableHttpResponse response = doRequest(method,uri, params)) {
+      return responseHandler.handleResponse(response);
+    }
+  }
+
+
+  protected CloseableHttpResponse doRequest(HttpMethod method, String uri, RequestHandler requestHandler) throws IOException {
+    return doRequest(method.name(),uri, requestHandler);
   }
 
   @Override
-  public CloseableHttpResponse doRequest(HttpMethod method, String uri, RequestHandle requestHandle) throws IOException {
-    return doRequest(method.name(),uri,requestHandle);
+  public <T> T doRequest(HttpMethod method, String uri, RequestHandler requestHandler, ResponseHandler<? extends T> responseHandler) throws IOException, ParseException {
+    return doRequest(method.name(),uri, requestHandler,responseHandler);
   }
 
   @Override
-  public <T> T doRequest(HttpMethod method, String uri, RequestHandle requestHandle, ResponseHandler<? extends T> responseHandler) throws IOException, ParseException {
-    return doRequest(method.name(),uri,requestHandle,responseHandler);
+  public N3Map request(HttpMethod method, String uri, RequestHandler requestHandler) {
+    return request(method.name(),uri, requestHandler);
   }
 
-  @Override
-  public N3Map request(HttpMethod method, String uri, RequestHandle requestHandle) {
-    return request(method.name(),uri,requestHandle);
-  }
 
-  @Override
-  public CloseableHttpResponse doRequest(HttpMethod method, String uri, Map<String, Object> params) throws IOException {
+  protected CloseableHttpResponse doRequest(HttpMethod method, String uri, Map<String, Object> params) throws IOException {
     return doRequest(method.name(),uri,params);
   }
 
@@ -192,7 +195,7 @@ public class ApiClientImpl implements ApiClient, RestClient {
 
   @Override
   public N3Map request(String method, String uri) {
-    return request(method,uri,(RequestHandle)null);
+    return request(method,uri,(RequestHandler)null);
   }
 
   @Override
@@ -226,23 +229,23 @@ public class ApiClientImpl implements ApiClient, RestClient {
   }
 
   @Override
-  public N3Map get(String uri, RequestHandle requestHandle) {
-    return request(HttpGet.METHOD_NAME,uri,requestHandle);
+  public N3Map get(String uri, RequestHandler requestHandler) {
+    return request(HttpGet.METHOD_NAME,uri, requestHandler);
   }
 
   @Override
-  public N3Map post(String uri, RequestHandle requestHandle) {
-    return request(HttpPost.METHOD_NAME,uri,requestHandle);
+  public N3Map post(String uri, RequestHandler requestHandler) {
+    return request(HttpPost.METHOD_NAME,uri, requestHandler);
   }
 
   @Override
-  public N3Map put(String uri, RequestHandle requestHandle) {
-    return request(HttpPut.METHOD_NAME,uri,requestHandle);
+  public N3Map put(String uri, RequestHandler requestHandler) {
+    return request(HttpPut.METHOD_NAME,uri, requestHandler);
   }
 
   @Override
-  public N3Map delete(String uri, RequestHandle requestHandle) {
-    return request(HttpDelete.METHOD_NAME,uri,requestHandle);
+  public N3Map delete(String uri, RequestHandler requestHandler) {
+    return request(HttpDelete.METHOD_NAME,uri, requestHandler);
   }
 
   @Override
@@ -281,11 +284,6 @@ public class ApiClientImpl implements ApiClient, RestClient {
     return routePlanner.getIface();
   }
 
-
-  @Override
-  public void close() {
-    close.close(this);
-  }
 
   @Override
   public N3Map getParams() {

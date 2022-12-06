@@ -5,6 +5,7 @@ import org.apache.hc.core5.http.ParseException;
 
 import java.io.IOException;
 
+@FunctionalInterface
 public interface  ResponseHandler<T> {
   T handleResponse(CloseableHttpResponse response) throws IOException, ParseException;
 }

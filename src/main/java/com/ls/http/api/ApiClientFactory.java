@@ -9,7 +9,7 @@ import java.util.List;
  * @author yangzj
  * @date 2021/6/16
  */
-public interface ApiClientFactory extends ApiClientFactoryConfig {
+public interface ApiClientFactory extends ApiClientFactoryConfig, ResponseHandlerSupport {
   void shutdown();
   ApiClientFactory setSoTimeout(int soTimeout);
   ApiClientFactory setConnTimeout(int connTimeout);
@@ -32,7 +32,7 @@ public interface ApiClientFactory extends ApiClientFactoryConfig {
    * @param handles 请求预处理器
    * @return ApiClient
    */
-  ApiClient getApiClient(String baseUri, List<Header> headers, RequestHandle... handles);
+  ApiClient getApiClient(String baseUri, List<Header> headers, RequestHandler... handles);
 
   /**
    *
@@ -43,7 +43,7 @@ public interface ApiClientFactory extends ApiClientFactoryConfig {
    * @param handles 请求预处理器
    * @return ApiClient
    */
-  ApiClient getApiClient(String baseUri, List<Header> headers, PostChecker checker, RequestHandle... handles);
+  ApiClient getApiClient(String baseUri, List<Header> headers, PostChecker checker, RequestHandler... handles);
 
 
 }

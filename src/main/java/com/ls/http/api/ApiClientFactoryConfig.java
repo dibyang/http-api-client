@@ -1,6 +1,6 @@
 package com.ls.http.api;
 
-import org.apache.hc.client5.http.routing.HttpRoutePlanner;
+
 
 /**
  * @author yangzj
@@ -9,4 +9,5 @@ import org.apache.hc.client5.http.routing.HttpRoutePlanner;
 public interface ApiClientFactoryConfig {
   int getConnTimeout();
   int getSoTimeout();
+  <T> ResponseHandler<T> getResponseHandler(Class<T> type,String name);
 }

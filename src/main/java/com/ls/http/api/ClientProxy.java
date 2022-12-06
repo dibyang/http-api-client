@@ -106,13 +106,9 @@ public class ClientProxy <T> implements InvocationHandler {
 
       Class<?> returnType = method.getReturnType();
       Type genericReturnType = method.getGenericReturnType();
-
-      if(HttpEntity.class.isAssignableFrom(returnType)){
-        CloseableHttpResponse response = client.getRestClient().doRequest(httpMethod, uri, reqParams);
-        return response.getEntity();
-      }else if(HttpResponse.class.isAssignableFrom(returnType)){
-        CloseableHttpResponse response = client.getRestClient().doRequest(httpMethod, uri, reqParams);
-        return response;
+      ResponseHandler<?> responseHandler = client.getFactoryConfig().getResponseHandler(returnType, mapping.handlerName());
+      if(responseHandler!=null){
+        return client.getRestClient().doRequest(httpMethod, uri, reqParams, responseHandler);
       }else{
         final N3Map map = client.getRestClient().request(httpMethod, uri, reqParams);
         Object e = map.get(ApiClient.EXCEPTION);

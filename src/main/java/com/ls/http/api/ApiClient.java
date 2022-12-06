@@ -1,6 +1,5 @@
 package com.ls.http.api;
 
-import java.io.Closeable;
 import java.util.List;
 import java.util.Map;
 
@@ -8,10 +7,10 @@ import java.util.Map;
  * @author yangzj
  * @date 2021/6/16
  */
-public interface ApiClient extends Closeable, ClientContext {
+public interface ApiClient extends ClientContext {
   String EXCEPTION = "__e__";
-  List<RequestHandle> getBaseRequestHandles();
-  RequestHandle getParamsHandle(Map<String, Object> params);
+  List<RequestHandler> getBaseRequestHandles();
+  RequestHandler getParamsHandle(Map<String, Object> params);
   RestClient getRestClient();
 
 
