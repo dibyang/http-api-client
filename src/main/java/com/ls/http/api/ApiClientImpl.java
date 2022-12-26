@@ -28,6 +28,7 @@ import java.util.concurrent.TimeUnit;
 public class ApiClientImpl implements ApiClient, RestClient {
 
   public static final String E = "e";
+  public static final String ERROR = "error";
   static Logger LOG = LoggerFactory.getLogger(ApiClientImpl.class);
 
   private final URI baseUri;
@@ -112,7 +113,8 @@ public class ApiClientImpl implements ApiClient, RestClient {
     } catch (IOException | ParseException e) {
       n3Map.put(EXCEPTION,e);
       n3Map.put(E,e);
-      LOG.warn(null,e);
+      n3Map.put(ERROR,e.getClass().getSimpleName());
+      //LOG.warn(null,e);
     }
     if(checker!=null&&checker.postCheck(this,n3Map)){
       n3Map = request(method, uri, requestHandler);
