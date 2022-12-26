@@ -112,8 +112,17 @@ public class ClientProxy <T> implements InvocationHandler {
       }else{
         final N3Map map = client.getRestClient().request(httpMethod, uri, reqParams);
         Object e = map.get(ApiClient.EXCEPTION);
+
         if(e instanceof Throwable){
-          throw (Throwable)e;
+          Class<?>[] exceptionTypes = method.getExceptionTypes();
+          if(exceptionTypes!=null){
+            for (Class<?> exceptionType : exceptionTypes) {
+              if(exceptionType.isAssignableFrom(e.getClass())){
+                throw (Throwable)e;
+              }
+            }
+          }
+
         }
 
         String[] returnKey = mapping.returnKey();
