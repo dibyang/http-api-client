@@ -6,10 +6,7 @@ import com.ls.http.api.annotation.ExtParams;
 import com.ls.http.api.annotation.Mapping;
 import com.ls.http.api.annotation.Param;
 import com.ls.luava.common.N3Map;
-import org.apache.hc.client5.http.impl.classic.CloseableHttpResponse;
 import org.apache.hc.core5.concurrent.FutureCallback;
-import org.apache.hc.core5.http.HttpEntity;
-import org.apache.hc.core5.http.HttpResponse;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -18,6 +15,10 @@ import java.lang.reflect.*;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -82,8 +83,11 @@ public class ClientProxy <T> implements InvocationHandler {
           FutureCallbackDefine futureCallbackDefine = new FutureCallbackDefine((FutureCallback)arg);
           Type[] types = arg.getClass().getGenericInterfaces();
           for (Type type : types) {
-            if(type.equals(FutureCallback.class)){
-              futureCallbackDefine.setDataType(((ParameterizedType)type).getActualTypeArguments()[0]);
+            if(type instanceof ParameterizedType){
+              ParameterizedType parameterizedType = (ParameterizedType) type;
+              if(parameterizedType.getRawType().equals(FutureCallback.class)) {
+                futureCallbackDefine.setDataType(parameterizedType.getActualTypeArguments()[0]);
+              }
             }
           }
           return futureCallbackDefine;
@@ -127,52 +131,36 @@ public class ClientProxy <T> implements InvocationHandler {
       if(futureCallback!=null){
         asyncInvoke(futureCallback, method, mapping, uri, reqParams, httpMethod);
       }else {
-        return syncInvoke(method, mapping, uri, reqParams, httpMethod);
+        ParameterizedType genericReturnType = (ParameterizedType)method.getGenericReturnType();
+        if(Future.class.equals(genericReturnType.getRawType())){
+          FutureCallbackDefine  futureCallback2 = new FutureCallbackDefine(null);
+          futureCallback2.setDataType(genericReturnType.getActualTypeArguments()[0]);
+          return asyncInvoke(futureCallback2, method, mapping, uri, reqParams, httpMethod);
+
+        }else {
+          return syncInvoke(method, mapping, uri, reqParams, httpMethod);
+        }
       }
     }
     return null;
   }
 
-  private void asyncInvoke(FutureCallbackDefine  futureCallback, Method method, Mapping mapping, String uri, Map<String, Object> reqParams, HttpMethod httpMethod) throws Throwable {
+  private Future<?> asyncInvoke(FutureCallbackDefine  futureCallback, Method method, Mapping mapping, String uri, Map<String, Object> reqParams, HttpMethod httpMethod) throws Throwable {
+    //Type returnType = futureCallback.getDataType();
     Type returnType = futureCallback.getDataType();
-    Type genericReturnType = null;
-    if(returnType instanceof ParameterizedType){
-      genericReturnType = ((ParameterizedType)returnType).getActualTypeArguments()[0];
-    }
+
     ResponseHandler<?> responseHandler = client.getHttpClient().getFactoryConfig().getResponseHandler(returnType, mapping.handlerName());
     if(responseHandler!=null){
-      client.getRestAsyncClient().doAsyncRequest(httpMethod.name(), uri, reqParams, responseHandler, futureCallback.getCallback());
+      return client.getRestAsyncClient().doAsyncRequest(httpMethod.name(), uri, reqParams, responseHandler, futureCallback.getCallback());
     }else{
-      Type finalGenericReturnType = genericReturnType;
-      client.getRestAsyncClient().asyncRequest(httpMethod.name(), uri, reqParams, new FutureCallback<N3Map>() {
+      final Future<N3Map> future = client.getRestAsyncClient().asyncRequest(httpMethod.name(), uri, reqParams, new FutureCallback<N3Map>() {
         @Override
         public void completed(N3Map map) {
-          Object e = map.get(ApiClient.EXCEPTION);
-
-          if(e instanceof Throwable){
-            Class<?>[] exceptionTypes = method.getExceptionTypes();
-            if(exceptionTypes!=null){
-              for (Class<?> exceptionType : exceptionTypes) {
-                if(exceptionType.isAssignableFrom(e.getClass())){
-                  futureCallback.getCallback().failed((Exception) e);
-                }
-              }
-            }
-          }
-
-          String[] returnKey = mapping.returnKey();
-          if (returnKey == null || returnKey.length == 0) {
-            if (map.containsKey(N3MapResponseHandler.RETURN__)) {
-              Object value = getValue(map, returnType, finalGenericReturnType, N3MapResponseHandler.RETURN__);
-              futureCallback.getCallback().completed(value);
-            } else {
-              Object value = getValue(map, returnType, finalGenericReturnType);
-              futureCallback.getCallback().completed(value);
-            }
-          } else {
-
-            Object value = getValue(map, returnType, finalGenericReturnType, returnKey);
+          try {
+            Object value = wrapValue(method, mapping, returnType, map);
             futureCallback.getCallback().completed(value);
+          } catch (Exception e) {
+            futureCallback.getCallback().failed(e);
           }
         }
 
@@ -186,50 +174,92 @@ public class ClientProxy <T> implements InvocationHandler {
           futureCallback.getCallback().cancelled();
         }
       });
+      return new Future<Object>() {
+        @Override
+        public boolean cancel(boolean mayInterruptIfRunning) {
+          return future.cancel(mayInterruptIfRunning);
+        }
 
+        @Override
+        public boolean isCancelled() {
+          return future.isCancelled();
+        }
+
+        @Override
+        public boolean isDone() {
+          return future.isDone();
+        }
+
+        @Override
+        public Object get() throws InterruptedException, ExecutionException {
+          N3Map map = future.get();
+          try {
+            return wrapValue(method, mapping, returnType, map);
+          } catch (Exception e) {
+            throw new ExecutionException(e);
+          }
+        }
+
+        @Override
+        public Object get(long timeout, TimeUnit unit) throws InterruptedException, ExecutionException, TimeoutException {
+          N3Map map = future.get(timeout,unit);
+          try {
+            return wrapValue(method, mapping, returnType, map);
+          } catch (Exception e) {
+            throw new ExecutionException(e);
+          }
+        }
+      };
     }
   }
 
   private Object syncInvoke(Method method, Mapping mapping, String uri, Map<String, Object> reqParams, HttpMethod httpMethod) throws Throwable {
     Type returnType = method.getReturnType();
     Type genericReturnType = method.getGenericReturnType();
+    if(genericReturnType!=null){
+      returnType = genericReturnType;
+    }
     ResponseHandler<?> responseHandler = client.getHttpClient().getFactoryConfig().getResponseHandler(returnType, mapping.handlerName());
     if(responseHandler!=null){
       return client.getRestClient().doRequest(httpMethod.name(), uri, reqParams, responseHandler);
     }else{
       final N3Map map = client.getRestClient().request(httpMethod.name(), uri, reqParams);
-      Object e = map.get(ApiClient.EXCEPTION);
-
-      if(e instanceof Throwable){
-        Class<?>[] exceptionTypes = method.getExceptionTypes();
-        if(exceptionTypes!=null){
-          for (Class<?> exceptionType : exceptionTypes) {
-            if(exceptionType.isAssignableFrom(e.getClass())){
-              throw (Throwable)e;
-            }
-          }
-        }
-
-      }
-
-      String[] returnKey = mapping.returnKey();
-      if (returnKey == null || returnKey.length == 0) {
-        if (map.containsKey(N3MapResponseHandler.RETURN__)) {
-          return getValue(map, returnType, genericReturnType, N3MapResponseHandler.RETURN__);
-        } else {
-          return getValue(map, returnType, genericReturnType);
-        }
-      } else {
-
-        return getValue(map, returnType, genericReturnType, returnKey);
-      }
+      return wrapValue(method, mapping, returnType, map);
     }
   }
 
-  private Object getValue(N3Map map, Type returnType, Type genericReturnType, String... returnKey) {
+  private Object wrapValue(Method method, Mapping mapping, Type returnType, N3Map map) throws Exception {
+    Object e = map.get(ApiClient.EXCEPTION);
+
+    if(e instanceof Throwable){
+      Class<?>[] exceptionTypes = method.getExceptionTypes();
+      if(exceptionTypes!=null){
+        for (Class<?> exceptionType : exceptionTypes) {
+          if(exceptionType.isAssignableFrom(e.getClass())){
+            throw (Exception)e;
+          }
+        }
+      }
+
+    }
+
+    String[] returnKey = mapping.returnKey();
+    if (returnKey == null || returnKey.length == 0) {
+      if (map.containsKey(N3MapResponseHandler.RETURN__)) {
+        return getValue(map, returnType, N3MapResponseHandler.RETURN__);
+      } else {
+        return getValue(map, returnType);
+      }
+    } else {
+
+      return getValue(map, returnType, returnKey);
+    }
+  }
+
+  private Object getValue(N3Map map, Type returnType, String... returnKey) {
     if (returnKey != null && returnKey.length > 0) {
-      if(genericReturnType instanceof ParameterizedType){
-        ParameterizedType parameterizedType = (ParameterizedType)genericReturnType;
+      if(returnType instanceof ParameterizedType){
+        ParameterizedType parameterizedType = (ParameterizedType)returnType;
         if(Collection.class.isAssignableFrom((Class<?>) parameterizedType.getRawType())){
           List<?> list = map.getValues((Class<?>) parameterizedType.getActualTypeArguments()[0], returnKey);
           return list;
