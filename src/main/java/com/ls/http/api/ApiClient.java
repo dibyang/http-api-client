@@ -13,6 +13,8 @@ public interface ApiClient extends ClientContext {
   RequestHandler getParamsHandle(Map<String, Object> params);
   RestClient getRestClient();
 
+  RestAsyncClient getRestAsyncClient();
+
 
   /**
    * 获取 ApiProxy

@@ -1,21 +1,15 @@
 package com.ls.http.api;
 
-
+import org.apache.hc.client5.http.impl.async.CloseableHttpAsyncClient;
 import org.apache.hc.core5.http.Header;
 
 import java.util.List;
 
-/**
- * @author yangzj
- * @date 2021/6/16
- */
-public interface ApiClientFactory extends ApiClientFactoryConfig, ResponseHandlerSupport {
-  void shutdown();
-  ApiClientFactory setSoTimeout(int soTimeout);
-  ApiClientFactory setConnTimeout(int connTimeout);
+public interface HttpClient extends AutoCloseable{
 
+  HttpClientFactoryConfig getFactoryConfig();
 
-  ApiClientFactory disableSslVerification();
+  CloseableHttpAsyncClient getHttpAsyncClient();
 
   /**
    * 获取RestClient
@@ -44,6 +38,5 @@ public interface ApiClientFactory extends ApiClientFactoryConfig, ResponseHandle
    * @return ApiClient
    */
   ApiClient getApiClient(String baseUri, List<Header> headers, PostChecker checker, RequestHandler... handles);
-
 
 }

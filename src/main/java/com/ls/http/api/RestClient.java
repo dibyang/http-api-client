@@ -1,28 +1,30 @@
 package com.ls.http.api;
 
 import com.ls.luava.common.N3Map;
+import org.apache.hc.client5.http.async.methods.SimpleHttpResponse;
+import org.apache.hc.core5.concurrent.FutureCallback;
 import org.apache.hc.core5.http.ParseException;
 
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Future;
 
 /**
  * @author yangzj
  * @date 2021/6/17
  */
 public interface RestClient {
-  <T> T doRequest(String method, String uri, RequestHandler requestHandler, final ResponseHandler<? extends T> responseHandler) throws IOException, ParseException;
-  N3Map request(String method, String uri, RequestHandler requestHandler);
-  <T> T doRequest(String method, String uri, Map<String,Object> params, final ResponseHandler<? extends T> responseHandler) throws IOException, ParseException;
-  <T> T doRequest(HttpMethod method, String uri, RequestHandler requestHandler, final ResponseHandler<? extends T> responseHandler) throws IOException, ParseException;
-  N3Map request(HttpMethod method, String uri, RequestHandler requestHandler);
-  <T> T doRequest(HttpMethod method, String uri, Map<String,Object> params, final ResponseHandler<? extends T> responseHandler) throws IOException, ParseException;
 
+  <T> T doRequest(String method, String uri, RequestHandler requestHandler, final ResponseHandler<T> responseHandler) throws IOException, ParseException, ExecutionException;
+  <T> T doRequest(String method, String uri, Map<String,Object> params, final ResponseHandler<T> responseHandler) throws IOException, ParseException, ExecutionException;
+
+
+  N3Map request(String method, String uri, RequestHandler requestHandler);
   N3Map request(String method, String uri, Map<String,Object> params);
   N3Map request(String method, String uri);
-  N3Map request(HttpMethod method, String uri, Map<String,Object> params);
-  N3Map request(HttpMethod method, String uri);
+
 
   N3Map get(String uri, Map<String,Object> params);
   N3Map post(String uri, Map<String,Object> params);

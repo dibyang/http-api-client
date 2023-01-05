@@ -4,15 +4,21 @@ import com.google.common.base.Strings;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.ls.luava.common.N3Map;
-import org.apache.hc.client5.http.impl.io.PoolingHttpClientConnectionManager;
-import org.apache.hc.client5.http.io.HttpClientConnectionManager;
-import org.apache.hc.client5.http.socket.ConnectionSocketFactory;
-import org.apache.hc.client5.http.socket.PlainConnectionSocketFactory;
+import org.apache.hc.client5.http.config.RequestConfig;
+import org.apache.hc.client5.http.impl.DefaultSchemePortResolver;
+import org.apache.hc.client5.http.impl.async.CloseableHttpAsyncClient;
+import org.apache.hc.client5.http.impl.async.HttpAsyncClients;
+import org.apache.hc.client5.http.impl.nio.PoolingAsyncClientConnectionManager;
+import org.apache.hc.client5.http.impl.nio.PoolingAsyncClientConnectionManagerBuilder;
+import org.apache.hc.client5.http.nio.AsyncClientConnectionManager;
+import org.apache.hc.client5.http.ssl.ClientTlsStrategyBuilder;
 import org.apache.hc.client5.http.ssl.NoopHostnameVerifier;
-import org.apache.hc.client5.http.ssl.SSLConnectionSocketFactory;
 import org.apache.hc.core5.http.Header;
-import org.apache.hc.core5.http.config.Registry;
-import org.apache.hc.core5.http.config.RegistryBuilder;
+import org.apache.hc.core5.http.nio.ssl.TlsStrategy;
+import org.apache.hc.core5.pool.PoolConcurrencyPolicy;
+import org.apache.hc.core5.reactor.IOReactorConfig;
+import org.apache.hc.core5.util.TimeValue;
+import org.apache.hc.core5.util.Timeout;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -21,18 +27,20 @@ import javax.net.ssl.SSLContext;
 import javax.net.ssl.TrustManager;
 import javax.net.ssl.X509TrustManager;
 import java.io.IOException;
+import java.lang.reflect.Type;
 import java.security.KeyManagementException;
 import java.security.NoSuchAlgorithmException;
 import java.security.cert.CertificateException;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 /**
  * @author yangzj
  * @date 2021/6/16
  */
-public class ApiClientFactoryImpl implements ApiClientFactory {
-  static Logger LOG = LoggerFactory.getLogger(ApiClientFactory.class);
+public class HttpClientFactoryImpl implements HttpClientFactory {
+  static Logger LOG = LoggerFactory.getLogger(HttpClientFactory.class);
 
   public final static int DEFAULT_CONNECT_TIMEOUT = 5 * 1000;
   public final static int DEFAULT_SOCKET_TIMEOUT = 5 * 1000;
@@ -41,11 +49,12 @@ public class ApiClientFactoryImpl implements ApiClientFactory {
 
   private int connTimeout = DEFAULT_CONNECT_TIMEOUT;
   private int soTimeout = DEFAULT_SOCKET_TIMEOUT;
-  private Registry<ConnectionSocketFactory> socketFactoryRegistry;
-  private final Map<Class,List<ResponseHandler>> responseHandlerMap = Maps.newConcurrentMap();
+  private TlsStrategy tlsStrategy;
+  private final Map<Type,List<ResponseHandler>> responseHandlerMap = Maps.newConcurrentMap();
 
 
-  public ApiClientFactoryImpl() {
+
+  public HttpClientFactoryImpl() {
     this.addResponseHandler(N3Map.class,new N3MapResponseHandler());
   }
 
@@ -53,7 +62,7 @@ public class ApiClientFactoryImpl implements ApiClientFactory {
     return connTimeout;
   }
 
-  public ApiClientFactory setConnTimeout(int connTimeout) {
+  public HttpClientFactory setConnTimeout(int connTimeout) {
     this.connTimeout = connTimeout;
     return this;
   }
@@ -64,7 +73,7 @@ public class ApiClientFactoryImpl implements ApiClientFactory {
 
 
   @Override
-  public <T> ResponseHandler<T> getResponseHandler(Class<T> type, String name) {
+  public <T> ResponseHandler<T> getResponseHandler(Type type, String name) {
     List<ResponseHandler> responseHandlers = responseHandlerMap.get(type);
     if (responseHandlers != null) {
       if(Strings.isNullOrEmpty(name)) {
@@ -78,7 +87,7 @@ public class ApiClientFactoryImpl implements ApiClientFactory {
   }
 
   @Override
-  public <T> boolean addResponseHandler(Class<T> type, ResponseHandler<T> responseHandler) {
+  public <T> boolean addResponseHandler(Type type, ResponseHandler<T> responseHandler) {
     if(responseHandler!=null) {
       synchronized (responseHandlerMap) {
         List<ResponseHandler> responseHandlers = responseHandlerMap.get(type);
@@ -94,7 +103,7 @@ public class ApiClientFactoryImpl implements ApiClientFactory {
   }
 
   @Override
-  public <T> void removeResponseHandler(Class<T> type, ResponseHandler<T> responseHandler) {
+  public <T> void removeResponseHandler(Type type, ResponseHandler<T> responseHandler) {
     if(responseHandler!=null) {
       synchronized (responseHandlerMap) {
         List<ResponseHandler> responseHandlers = responseHandlerMap.get(type);
@@ -115,7 +124,7 @@ public class ApiClientFactoryImpl implements ApiClientFactory {
     }
   }
 
-  public ApiClientFactory setSoTimeout(int soTimeout) {
+  public HttpClientFactory setSoTimeout(int soTimeout) {
     this.soTimeout = soTimeout;
     return this;
   }
@@ -150,19 +159,16 @@ public class ApiClientFactoryImpl implements ApiClientFactory {
 
 
   @Override
-  public ApiClientFactory disableSslVerification() {
+  public HttpClientFactory disableSslVerification() {
     try {
       //采用绕过验证的方式处理https请求
       SSLContext sslcontext = createIgnoreVerifySSL();
 
       //设置协议http和https对应的处理socket链接工厂的对象
       HostnameVerifier hostnameVerifier = new NoopHostnameVerifier();
-      final SSLConnectionSocketFactory socketFactory = new SSLConnectionSocketFactory(sslcontext,hostnameVerifier);
-
-      socketFactoryRegistry = RegistryBuilder.<ConnectionSocketFactory>create()
-        .register("http", PlainConnectionSocketFactory.INSTANCE)
-        .register("https", socketFactory)
-        .build();
+      tlsStrategy = ClientTlsStrategyBuilder.create()
+          .setSslContext(sslcontext)
+          .setHostnameVerifier(hostnameVerifier).build();
 
     } catch (Exception e) {
       LOG.warn("",e);
@@ -171,32 +177,44 @@ public class ApiClientFactoryImpl implements ApiClientFactory {
   }
 
   @Override
-  public ApiClient getApiClient(String baseUri) {
-    return getApiClient(baseUri,null);
+  public HttpClient getHttpClient() {
+    return getHttpClient(getSoTimeout(), getConnTimeout());
   }
 
   @Override
-  public ApiClient getApiClient(String baseUri, List<Header> headers, RequestHandler... handles) {
-    return getApiClient(baseUri, headers, null, handles);
+  public HttpClient getHttpClient(int soTimeout, int connTimeout) {
+
+    IFaceRoutePlanner routePlanner = new IFaceRoutePlanner(DefaultSchemePortResolver.INSTANCE);
+    CloseableHttpAsyncClient httpClient = getHttpClient(routePlanner);
+    return new HttpClientImpl(httpClient,routePlanner, this);
+
   }
 
-  @Override
-  public ApiClient getApiClient(String baseUri, List<Header> headers, PostChecker checker, RequestHandler... handles) {
-    List<RequestHandler> requestHandlers = Lists.newArrayList(handles);
-    if(headers!=null&&headers.size()>0){
-      requestHandlers.add(builder-> headers.forEach(header->builder.addHeader(header)));
-    }
-    HttpClientConnectionManager connManager = getConnectionManager();
-    return new ApiClientImpl(baseUri, requestHandlers, this, connManager, checker);
+
+  private CloseableHttpAsyncClient getHttpClient(IFaceRoutePlanner routePlanner) {
+    RequestConfig requestConfig = RequestConfig.custom()
+        .setConnectTimeout(Timeout.of(getConnTimeout(), TimeUnit.MILLISECONDS))
+        .setConnectionRequestTimeout(Timeout.of(getSoTimeout(),TimeUnit.MILLISECONDS)).build();
+    IOReactorConfig ioReactorConfig = IOReactorConfig.custom()
+        .setSoTimeout(Timeout.of(getConnTimeout(), TimeUnit.MILLISECONDS))          // 1.1
+        .setSelectInterval(TimeValue.ofMilliseconds(50))    // 1.2
+        .build();
+    return HttpAsyncClients.custom()
+        .setConnectionManager(getConnectionManager())
+        .setIOReactorConfig(ioReactorConfig)
+        .setRoutePlanner(routePlanner)
+        .setDefaultRequestConfig(requestConfig)
+        .build();
   }
 
-  private HttpClientConnectionManager getConnectionManager() {
-    PoolingHttpClientConnectionManager connManager = null;
-    if (socketFactoryRegistry != null) {
-      connManager = new PoolingHttpClientConnectionManager(socketFactoryRegistry);
-    }else{
-      connManager = new PoolingHttpClientConnectionManager();
-    }
+
+
+  private AsyncClientConnectionManager getConnectionManager() {
+    PoolingAsyncClientConnectionManager connManager = PoolingAsyncClientConnectionManagerBuilder.create()
+        .setPoolConcurrencyPolicy(PoolConcurrencyPolicy.LAX)  // 2.1
+        .setTlsStrategy(tlsStrategy)
+        .setMaxConnPerRoute(6).build();
+
     return connManager;
   }
 
