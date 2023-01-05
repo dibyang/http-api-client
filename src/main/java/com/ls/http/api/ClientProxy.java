@@ -150,28 +150,35 @@ public class ClientProxy <T> implements InvocationHandler {
     Type returnType = futureCallback.getDataType();
 
     ResponseHandler<?> responseHandler = client.getHttpClient().getFactoryConfig().getResponseHandler(returnType, mapping.handlerName());
+    FutureCallback callback = futureCallback.getCallback();
     if(responseHandler!=null){
-      return client.getRestAsyncClient().doAsyncRequest(httpMethod.name(), uri, reqParams, responseHandler, futureCallback.getCallback());
+      return client.getRestAsyncClient().doAsyncRequest(httpMethod.name(), uri, reqParams, responseHandler, callback);
     }else{
       final Future<N3Map> future = client.getRestAsyncClient().asyncRequest(httpMethod.name(), uri, reqParams, new FutureCallback<N3Map>() {
         @Override
         public void completed(N3Map map) {
-          try {
-            Object value = wrapValue(method, mapping, returnType, map);
-            futureCallback.getCallback().completed(value);
-          } catch (Exception e) {
-            futureCallback.getCallback().failed(e);
+          if(callback!=null) {
+            try {
+              Object value = wrapValue(method, mapping, returnType, map);
+              callback.completed(value);
+            } catch (Exception e) {
+              callback.failed(e);
+            }
           }
         }
 
         @Override
         public void failed(Exception ex) {
-          futureCallback.getCallback().failed(ex);
+          if(callback!=null){
+            callback.failed(ex);
+          }
         }
 
         @Override
         public void cancelled() {
-          futureCallback.getCallback().cancelled();
+          if(callback!=null){
+            callback.cancelled();
+          }
         }
       });
       return new Future<Object>() {
