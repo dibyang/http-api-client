@@ -20,4 +20,12 @@ public interface HttpClientFactory extends HttpClientFactoryConfig, ResponseHand
   HttpClient getHttpClient();
   HttpClient getHttpClient(int soTimeout, int connTimeout);
 
+  <V> V call(HttpCallable<V> callable) throws Exception;
+
+  ApiExecutor getApiExecutor(String baseUri, List<Header> headers, PostChecker checker, RequestHandler... handles);
+
+  ApiExecutor getApiExecutor(String baseUri, List<Header> headers, RequestHandler... handles);
+
+  ApiExecutor getApiExecutor(String baseUri);
+
 }

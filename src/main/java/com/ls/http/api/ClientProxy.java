@@ -131,12 +131,16 @@ public class ClientProxy <T> implements InvocationHandler {
       if(futureCallback!=null){
         asyncInvoke(futureCallback, method, mapping, uri, reqParams, httpMethod);
       }else {
-        ParameterizedType genericReturnType = (ParameterizedType)method.getGenericReturnType();
-        if(Future.class.equals(genericReturnType.getRawType())){
+        Type returnType = method.getGenericReturnType();
+        ParameterizedType genericReturnType = null;
+        if(returnType!=null&&returnType instanceof ParameterizedType){
+          genericReturnType = (ParameterizedType)returnType;
+        }
+        if(genericReturnType !=null
+            &&Future.class.equals(genericReturnType.getRawType())){
           FutureCallbackDefine  futureCallback2 = new FutureCallbackDefine(null);
           futureCallback2.setDataType(genericReturnType.getActualTypeArguments()[0]);
           return asyncInvoke(futureCallback2, method, mapping, uri, reqParams, httpMethod);
-
         }else {
           return syncInvoke(method, mapping, uri, reqParams, httpMethod);
         }

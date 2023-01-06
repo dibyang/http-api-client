@@ -190,6 +190,33 @@ public class HttpClientFactoryImpl implements HttpClientFactory {
 
   }
 
+  @Override
+  public <V> V call(HttpCallable<V> callable) throws Exception {
+    try(HttpClient httpClient = getHttpClient()) {
+      return callable.call(httpClient);
+    }
+  }
+
+  @Override
+  public ApiExecutor getApiExecutor(String baseUri, List<Header> headers, PostChecker checker, RequestHandler... handles) {
+    HttpClient httpClient = getHttpClient();
+    ApiClient apiClient = httpClient.getApiClient(baseUri, headers, checker, handles);
+    return new ApiExecutorImpl(apiClient);
+  }
+
+  @Override
+  public ApiExecutor getApiExecutor(String baseUri, List<Header> headers, RequestHandler... handles) {
+    HttpClient httpClient = getHttpClient();
+    ApiClient apiClient = httpClient.getApiClient(baseUri, headers, handles);
+    return new ApiExecutorImpl(apiClient);
+  }
+
+  @Override
+  public ApiExecutor getApiExecutor(String baseUri) {
+    HttpClient httpClient = getHttpClient();
+    ApiClient apiClient = httpClient.getApiClient(baseUri);
+    return new ApiExecutorImpl(apiClient);
+  }
 
   private CloseableHttpAsyncClient getHttpClient(IFaceRoutePlanner routePlanner) {
     RequestConfig requestConfig = RequestConfig.custom()
