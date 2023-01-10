@@ -98,18 +98,16 @@ public class ClientProxy <T> implements InvocationHandler {
     return null;
   }
 
-  boolean isIgnoreParameter(Param param,Object arg){
+  String getParameterName(Parameter parameter){
+    Param param = parameter.getAnnotation(Param.class);
+    String name = null;
     if(param!=null){
-      return true;
+      name = param.value();
     }
-    if(arg!=null){
-      if(!(arg instanceof FutureCallback)) {
-        return true;
-      }
-    }else{
-      return true;
+    if(Strings.isNullOrEmpty(name)&&parameter.isNamePresent()){
+      name = parameter.getName();
     }
-    return false;
+    return name;
   }
 
   private List<ArgParm> getArgParms(Method method, Object[] args) {
@@ -118,15 +116,11 @@ public class ClientProxy <T> implements InvocationHandler {
     Parameter[] parameters = method.getParameters();
     for (Parameter parameter : parameters) {
       Object arg = args[index];
-      Param param = parameter.getAnnotation(Param.class);
-      if(!isIgnoreParameter(param,arg)){
-        if(param!=null||parameter.isNamePresent()){
+      if(!(arg instanceof FutureCallback)){
+        String name = getParameterName(parameter);
+        if(name!=null){
           ArgParm argParam = new ArgParm();
           argParam.setArg(arg);
-          String name = (param!=null)?param.value():parameter.getName();
-          if(Strings.isNullOrEmpty(name)&&parameter.isNamePresent()){
-            name = parameter.getName();
-          }
           argParam.setName(name);
           argParams.add(argParam);
         }
