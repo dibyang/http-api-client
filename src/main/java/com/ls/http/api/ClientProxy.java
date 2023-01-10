@@ -1,5 +1,6 @@
 package com.ls.http.api;
 
+import com.google.common.base.Strings;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.ls.http.api.annotation.ExtParams;
@@ -97,24 +98,42 @@ public class ClientProxy <T> implements InvocationHandler {
     return null;
   }
 
+  boolean isIgnoreParameter(Param param,Object arg){
+    if(param!=null){
+      return true;
+    }
+    if(arg!=null){
+      if(!(arg instanceof FutureCallback)) {
+        return true;
+      }
+    }else{
+      return true;
+    }
+    return false;
+  }
+
   private List<ArgParm> getArgParms(Method method, Object[] args) {
     List<ArgParm> argParams = Lists.newArrayList();
     int index = 0;
-    for (Annotation[] anns : method.getParameterAnnotations()) {
-      ArgParm argParam = new ArgParm();
-      argParam.setArg(args[index]);
-      argParams.add(argParam);
-      index++;
-      if (anns.length > 0) {
-        argParam.setAnnotations(Lists.newArrayList(anns));
-        for (Annotation ann : anns) {
-          if (ann instanceof Param) {
-            argParam.setName(((Param) ann).value());
-            break;
+    Parameter[] parameters = method.getParameters();
+    for (Parameter parameter : parameters) {
+      Object arg = args[index];
+      Param param = parameter.getAnnotation(Param.class);
+      if(!isIgnoreParameter(param,arg)){
+        if(param!=null||parameter.isNamePresent()){
+          ArgParm argParam = new ArgParm();
+          argParam.setArg(arg);
+          String name = (param!=null)?param.value():parameter.getName();
+          if(Strings.isNullOrEmpty(name)&&parameter.isNamePresent()){
+            name = parameter.getName();
           }
+          argParam.setName(name);
+          argParams.add(argParam);
         }
       }
+      index++;
     }
+
     return argParams;
   }
 
