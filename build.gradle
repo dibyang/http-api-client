@@ -1,21 +1,40 @@
-import net.researchgate.release.GitAdapter
-
 buildscript {
   repositories {
-    maven {
-      name "REPO_NEXUS"
-      url "http://${nexus_host}:8081/repository/maven-public/"
-    }
+    mavenLocal()
+    maven { url 'https://maven.aliyun.com/repository/public/' }
+    mavenCentral()
   }
   dependencies {
     classpath 'net.researchgate:gradle-release:2.6.0'
   }
+  //skip Test tasks
+  gradle.taskGraph.whenReady {
+    tasks.each { task ->
+      if (task.name.contains("test")) {
+        task.enabled = false
+      }
+    }
+  }
 }
 
-apply plugin: 'maven'
 apply plugin: 'java'
+apply plugin: 'maven'
+apply plugin: 'signing'
 apply plugin: 'net.researchgate.release'
 
+File signing_cfg = new File("$project.rootDir/signing.properties")
+if(signing_cfg.exists()) {
+  Properties props = new Properties()
+  props.load(new FileInputStream(signing_cfg))
+  props.each { prop ->
+    project.ext.set(prop.key, prop.value)
+  }
+
+  // 将构建的包签名
+  signing {
+    sign configurations.archives
+  }
+}
 
 release {
   failOnUnversionedFiles = true
@@ -26,7 +45,7 @@ release {
   revertOnFail = true
   tagTemplate = 'v${version}'
   scmAdapters = [
-      GitAdapter
+      net.researchgate.release.GitAdapter
   ]
 
   git {
@@ -40,56 +59,143 @@ release {
 }
 
 
-group 'com.ls.http.api'
-
-tasks.withType(JavaCompile) {
-  options.encoding = "UTF-8"
-}
-
-java {
-  withSourcesJar()
-}
-
-artifacts {
-  archives sourcesJar
-}
-
 afterReleaseBuild.dependsOn uploadArchives
+
+
+configurations.all {
+  resolutionStrategy {
+    // cache dynamic versions for 10 seconds
+    cacheDynamicVersionsFor 10, 'seconds'
+    // don't cache changing modules at all
+    cacheChangingModulesFor 0, 'seconds'
+  }
+}
+
+sourceSets {
+  main {
+    java {
+      srcDirs = ['src/main/java']
+    }
+    resources {
+      srcDirs = ['src/main/resources']
+    }
+  }
+  test {
+    java {
+      srcDirs = ['src/test/java', 'src/sample/java']
+    }
+    resources {
+      srcDirs = ['src/test/resources']
+    }
+  }
+}
+
+
+
+sourceCompatibility = project.jdkVersion
+targetCompatibility = project.jdkVersion
 
 repositories {
   mavenLocal()
-  maven {
-    name "REPO_NEXUS"
-    url "http://${nexus_host}:8081/repository/maven-public/"
-  }
+  maven { url 'https://maven.aliyun.com/repository/public/' }
   mavenCentral()
 }
 
 dependencies {
-  compile("com.ls.luava:luava:${luava_version}")
+  compile("net.xdob.luava:luava:${luava_version}")
   compile("org.apache.httpcomponents.client5:httpclient5:${httpclient_version}")
   testImplementation 'org.junit.jupiter:junit-jupiter-api:5.7.0'
   testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine:5.7.0'
 }
 
-test {
-    useJUnitPlatform()
+processResources {
+  filter org.apache.tools.ant.filters.ReplaceTokens, beginToken : '${', endToken : '}',tokens:['project.version': project.version]
 }
+
+tasks.withType(JavaCompile) {
+  options.encoding = 'UTF-8'
+}
+
+//对于典型的 Java 项目，您可以添加一个javadocJar以及一个 sourcesJar任务
+task javadocJar(type: Jar) {
+  classifier = 'javadoc'
+  from javadoc
+}
+
+task sourcesJar(type: Jar) {
+  classifier = 'sources'
+  from sourceSets.main.allSource
+}
+// javadoc 配置，这里是自定义了 java doc 的一些配置
+javadoc {
+  description = "Generates project-level javadoc for use in -javadoc jar"
+
+  options.memberLevel = org.gradle.external.javadoc.JavadocMemberLevel.PROTECTED
+  options.author = true
+  options.version = true
+  options.header = project.name
+  options.addStringOption('Xdoclint:none', '-quiet')
+
+  // suppress warnings due to cross-module @see and @link references;
+  // note that global 'api' task does display all warnings.
+  logging.captureStandardError LogLevel.INFO
+  logging.captureStandardOutput LogLevel.INFO // suppress "## warnings" message
+  options.encoding = "UTF-8"  //编码一定要配置否则直接出错
+  options.charSet = 'UTF-8'
+}
+
+// 并将它们与项目 jar 本身一起连接到 artifacts 集合中：
+artifacts {
+  archives javadocJar, sourcesJar
+}
+
 
 uploadArchives {
   repositories {
     mavenDeployer {
-      repository(url: "http://${nexus_host}:8081/repository/maven-releases/") {
-        authentication(userName: project.rootProject.username, password: project.rootProject.password)
+      beforeDeployment { MavenDeployment deployment -> signing.signPom(deployment) }
+
+      repository(url: "https://s01.oss.sonatype.org/service/local/staging/deploy/maven2/") {
+        authentication(userName: findProperty("ossrhUsername")?:"", password: findProperty("ossrhPassword")?:"")
       }
-      snapshotRepository(url: "http://${nexus_host}:8081/repository/maven-snapshots/") {
-        authentication(userName: project.rootProject.username, password: project.rootProject.password)
+
+      snapshotRepository(url: "https://s01.oss.sonatype.org/content/repositories/snapshots/") {
+        authentication(userName: findProperty("ossrhUsername")?:"", password: findProperty("ossrhPassword")?:"")
+      }
+
+      pom.project {
+        name 'http-apiclient'
+        packaging 'jar'
+        // optionally artifactId can be defined here
+        description "the LoongStore util library"
+        url 'https://github.com/dibyang/http-apiclient'
+
+        scm {
+          connection 'scm:git:https://github.com/dibyang/http-apiclient.git'
+          developerConnection 'scm:git:https://github.com/dibyang/http-apiclient.git'
+          url 'https://github.com/dibyang/http-apiclient.git'
+        }
+
+        licenses {
+          license {
+            name 'The Apache License, Version 2.0'
+            url 'http://www.apache.org/licenses/LICENSE-2.0.txt'
+          }
+        }
+
+        developers {
+          developer {
+            id 'yangzj'
+            name 'Yang zhijian'
+            email '3227817@qq.com'
+          }
+        }
       }
     }
   }
 }
 
-artifacts {
-  archives jar
-  archives sourcesJar
-}
+
+
+
+
