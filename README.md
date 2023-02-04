@@ -45,7 +45,7 @@ public interface AioMonitor {
 
 }
 
-public class Test() {
+public class ProxyTest() {
   public static void main(String[] args) {
     HttpClientFactory httpClientFactory = new HttpClientFactoryImpl();
     try (HttpClient httpClient = httpClientFactory.getHttpClient()) {
