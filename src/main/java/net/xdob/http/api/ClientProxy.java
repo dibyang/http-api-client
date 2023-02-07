@@ -7,6 +7,7 @@ import net.xdob.http.api.annotation.ExtParams;
 import net.xdob.http.api.annotation.Mapping;
 import net.xdob.http.api.annotation.Param;
 import com.ls.luava.common.N3Map;
+import net.xdob.http.api.annotation.Sign;
 import org.apache.hc.core5.concurrent.FutureCallback;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -130,6 +131,8 @@ public class ClientProxy <T> implements InvocationHandler {
     return argParams;
   }
 
+
+
   @Override
   public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
     Mapping mapping = method.getAnnotation(Mapping.class);
@@ -137,6 +140,7 @@ public class ClientProxy <T> implements InvocationHandler {
       String uri = mapping.value();
       List<ArgParam> argParams = this.getArgParams(method, args);
       Map<String, Object> reqParams = this.getRequestParams(method, argParams);
+
       HttpMethod httpMethod = mapping.method();
 
       FutureCallbackDefine  futureCallback = getFutureCallback(args);
@@ -165,12 +169,28 @@ public class ClientProxy <T> implements InvocationHandler {
     //Type returnType = futureCallback.getDataType();
     Type returnType = futureCallback.getDataType();
 
+    RequestHandler requestHandler = builder->{
+      Sign sign = method.getAnnotation(Sign.class);
+      if(sign!=null){
+        ParamSign paramSign = this.client.getHttpClient().getFactoryConfig().getParamSign(sign.signMethod());
+        if(paramSign!=null){
+          String signValue = paramSign.sign(sign.key(), reqParams);
+          if(sign.header()){
+            builder.addHeader(sign.value(),signValue);
+          }else{
+            reqParams.put(sign.value(),signValue);
+          }
+        }
+      }
+      RequestHandler paramsHandler = client.getParamsHandle(reqParams);
+      paramsHandler.handle(builder);
+    };
     ResponseHandler<?> responseHandler = client.getHttpClient().getFactoryConfig().getResponseHandler(returnType, mapping.handlerName());
     FutureCallback callback = futureCallback.getCallback();
     if(responseHandler!=null){
-      return client.getRestAsyncClient().doAsyncRequest(httpMethod.name(), uri, reqParams, responseHandler, callback);
+      return client.getRestAsyncClient().doAsyncRequest(httpMethod.name(), uri, requestHandler, responseHandler, callback);
     }else{
-      final Future<N3Map> future = client.getRestAsyncClient().asyncRequest(httpMethod.name(), uri, reqParams, new FutureCallback<N3Map>() {
+      final Future<N3Map> future = client.getRestAsyncClient().asyncRequest(httpMethod.name(), uri, requestHandler, new FutureCallback<N3Map>() {
         @Override
         public void completed(N3Map map) {
           if(callback!=null) {

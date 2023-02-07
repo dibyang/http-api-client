@@ -51,7 +51,7 @@ public class HttpClientFactoryImpl implements HttpClientFactory {
   private int soTimeout = DEFAULT_SOCKET_TIMEOUT;
   private TlsStrategy tlsStrategy;
   private final Map<Type,List<ResponseHandler>> responseHandlerMap = Maps.newConcurrentMap();
-
+  private final Map<String,ParamSign> paramSignMap = Maps.newConcurrentMap();
 
 
   public HttpClientFactoryImpl() {
@@ -84,6 +84,21 @@ public class HttpClientFactoryImpl implements HttpClientFactory {
       }
     }
     return null;
+  }
+
+  @Override
+  public void setParamSign(String signMethod, ParamSign paramSign) {
+    paramSignMap.put(signMethod, paramSign);
+  }
+
+  @Override
+  public void removeParamSign(String signMethod) {
+    paramSignMap.remove(signMethod);
+  }
+
+  @Override
+  public ParamSign getParamSign(String signMethod) {
+    return paramSignMap.get(signMethod);
   }
 
   @Override
