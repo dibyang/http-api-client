@@ -262,11 +262,27 @@ public class ClientProxy <T> implements InvocationHandler {
     if(genericReturnType!=null){
       returnType = genericReturnType;
     }
+    RequestHandler requestHandler = builder->{
+      Sign sign = method.getAnnotation(Sign.class);
+      if(sign!=null){
+        ParamSign paramSign = this.client.getHttpClient().getFactoryConfig().getParamSign(sign.signMethod());
+        if(paramSign!=null){
+          String signValue = paramSign.sign(sign.key(), reqParams);
+          if(sign.header()){
+            builder.addHeader(sign.value(),signValue);
+          }else{
+            reqParams.put(sign.value(),signValue);
+          }
+        }
+      }
+      RequestHandler paramsHandler = client.getParamsHandle(reqParams);
+      paramsHandler.handle(builder);
+    };
     ResponseHandler<?> responseHandler = client.getHttpClient().getFactoryConfig().getResponseHandler(returnType, mapping.handlerName());
     if(responseHandler!=null){
-      return client.getRestClient().doRequest(httpMethod.name(), uri, reqParams, responseHandler);
+      return client.getRestClient().doRequest(httpMethod.name(), uri, requestHandler, responseHandler);
     }else{
-      final N3Map map = client.getRestClient().request(httpMethod.name(), uri, reqParams);
+      final N3Map map = client.getRestClient().request(httpMethod.name(), uri, requestHandler);
       return wrapValue(method, mapping, returnType, map);
     }
   }
