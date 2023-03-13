@@ -10,7 +10,7 @@ import java.util.List;
  * @date 2021/6/16
  */
 public interface HttpClientFactory extends HttpClientFactoryConfig, ResponseHandlerSupport {
-  void shutdown();
+
   HttpClientFactory setSoTimeout(int soTimeout);
   HttpClientFactory setConnTimeout(int connTimeout);
 

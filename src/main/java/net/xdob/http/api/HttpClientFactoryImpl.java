@@ -7,6 +7,7 @@ import com.ls.luava.common.N3Map;
 import org.apache.hc.client5.http.config.RequestConfig;
 import org.apache.hc.client5.http.impl.DefaultSchemePortResolver;
 import org.apache.hc.client5.http.impl.async.CloseableHttpAsyncClient;
+import org.apache.hc.client5.http.impl.async.HttpAsyncClientBuilder;
 import org.apache.hc.client5.http.impl.async.HttpAsyncClients;
 import org.apache.hc.client5.http.impl.nio.PoolingAsyncClientConnectionManager;
 import org.apache.hc.client5.http.impl.nio.PoolingAsyncClientConnectionManagerBuilder;
@@ -52,9 +53,11 @@ public class HttpClientFactoryImpl implements HttpClientFactory {
   private TlsStrategy tlsStrategy;
   private final Map<Type,List<ResponseHandler>> responseHandlerMap = Maps.newConcurrentMap();
   private final Map<String,ParamSign> paramSignMap = Maps.newConcurrentMap();
-
+  private boolean connManagerShared;
+  private final HttpAsyncClientBuilder clientBuilder = HttpAsyncClients.custom();
 
   public HttpClientFactoryImpl() {
+
     this.addResponseHandler(N3Map.class,new N3MapResponseHandler());
   }
 
@@ -71,6 +74,14 @@ public class HttpClientFactoryImpl implements HttpClientFactory {
     return soTimeout;
   }
 
+  public boolean isConnManagerShared() {
+    return connManagerShared;
+  }
+
+  public void setConnManagerShared(boolean connManagerShared) {
+    this.connManagerShared = connManagerShared;
+    clientBuilder.setConnectionManagerShared(connManagerShared);
+  }
 
   @Override
   public <T> ResponseHandler<T> getResponseHandler(Type type, String name) {
@@ -129,15 +140,6 @@ public class HttpClientFactoryImpl implements HttpClientFactory {
     }
   }
 
-
-  @Override
-  public void shutdown() {
-    try {
-      getConnectionManager().close();
-    } catch (IOException e) {
-      LOG.warn("",e);
-    }
-  }
 
   public HttpClientFactory setSoTimeout(int soTimeout) {
     this.soTimeout = soTimeout;
@@ -241,7 +243,7 @@ public class HttpClientFactoryImpl implements HttpClientFactory {
         .setSoTimeout(Timeout.of(getConnTimeout(), TimeUnit.MILLISECONDS))          // 1.1
         .setSelectInterval(TimeValue.ofMilliseconds(50))    // 1.2
         .build();
-    return HttpAsyncClients.custom()
+    return clientBuilder.setConnectionManagerShared(connManagerShared)
         .setConnectionManager(getConnectionManager())
         .setIOReactorConfig(ioReactorConfig)
         .setRoutePlanner(routePlanner)

@@ -10,6 +10,8 @@ import java.lang.reflect.Type;
 public interface HttpClientFactoryConfig {
   int getConnTimeout();
   int getSoTimeout();
+  void setConnManagerShared(boolean connManagerShared);
+  boolean isConnManagerShared();
   <T> ResponseHandler<T> getResponseHandler(Type type, String name);
   /**
    * 注册的参数签名方法
