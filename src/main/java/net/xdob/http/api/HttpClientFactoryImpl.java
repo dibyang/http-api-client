@@ -27,7 +27,6 @@ import javax.net.ssl.HostnameVerifier;
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.TrustManager;
 import javax.net.ssl.X509TrustManager;
-import java.io.IOException;
 import java.lang.reflect.Type;
 import java.security.KeyManagementException;
 import java.security.NoSuchAlgorithmException;
@@ -44,7 +43,7 @@ public class HttpClientFactoryImpl implements HttpClientFactory {
   static Logger LOG = LoggerFactory.getLogger(HttpClientFactory.class);
 
   public final static int DEFAULT_CONNECT_TIMEOUT = 5 * 1000;
-  public final static int DEFAULT_SOCKET_TIMEOUT = 5 * 1000;
+  public final static int DEFAULT_SOCKET_TIMEOUT = 10 * 1000;
   public final static String DEFAULT_CHARSET = "utf-8";
 
 
@@ -240,7 +239,7 @@ public class HttpClientFactoryImpl implements HttpClientFactory {
         .setConnectTimeout(Timeout.of(getConnTimeout(), TimeUnit.MILLISECONDS))
         .setConnectionRequestTimeout(Timeout.of(getSoTimeout(),TimeUnit.MILLISECONDS)).build();
     IOReactorConfig ioReactorConfig = IOReactorConfig.custom()
-        .setSoTimeout(Timeout.of(getConnTimeout(), TimeUnit.MILLISECONDS))          // 1.1
+        .setSoTimeout(Timeout.of(getSoTimeout(), TimeUnit.MILLISECONDS))          // 1.1
         .setSelectInterval(TimeValue.ofMilliseconds(50))    // 1.2
         .build();
     return clientBuilder.setConnectionManagerShared(connManagerShared)
