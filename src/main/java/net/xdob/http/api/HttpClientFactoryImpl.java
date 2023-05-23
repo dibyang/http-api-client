@@ -214,6 +214,32 @@ public class HttpClientFactoryImpl implements HttpClientFactory {
   }
 
   @Override
+  public <V> V callNoThrow(HttpCallable<V> callable) {
+    try {
+      return call(callable);
+    } catch (Exception e) {
+      LOG.warn("call throw Exception", e);
+    }
+    return null;
+  }
+
+  @Override
+  public void execute(HttpRunnable runnable) throws Exception {
+    try(HttpClient httpClient = getHttpClient()) {
+      runnable.run(httpClient);
+    }
+  }
+
+  @Override
+  public void executeNoThrow(HttpRunnable runnable) {
+    try {
+      execute(runnable);
+    } catch (Exception e) {
+      LOG.warn("execute throw Exception", e);
+    }
+  }
+
+  @Override
   public ApiExecutor getApiExecutor(String baseUri, List<Header> headers, PostChecker checker, RequestHandler... handles) {
     HttpClient httpClient = getHttpClient();
     ApiClient apiClient = httpClient.getApiClient(baseUri, headers, checker, handles);
