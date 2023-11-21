@@ -14,8 +14,8 @@ import java.util.concurrent.ExecutionException;
  */
 public interface RestClient {
 
-  <T> T doRequest(String method, String uri, RequestHandler requestHandler, final ResponseHandler<T> responseHandler) throws IOException, ParseException, ExecutionException;
-  <T> T doRequest(String method, String uri, Map<String,Object> params, final ResponseHandler<T> responseHandler) throws IOException, ParseException, ExecutionException;
+  <T> T doRequest(String method, String uri, RequestHandler requestHandler, final ResponseHandler<T> responseHandler) throws IOException, ParseException, ExecutionException, InterruptedException;
+  <T> T doRequest(String method, String uri, Map<String,Object> params, final ResponseHandler<T> responseHandler) throws IOException, ParseException, ExecutionException, InterruptedException;
 
 
   N3Map request(String method, String uri, RequestHandler requestHandler);

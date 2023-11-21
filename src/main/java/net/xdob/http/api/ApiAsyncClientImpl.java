@@ -65,14 +65,9 @@ public class ApiAsyncClientImpl implements ApiClient, RestClient, RestAsyncClien
 
 
 
-  protected SimpleHttpResponse doRequest(String method, String uri, RequestHandler requestHandler) throws IOException, ExecutionException {
+  protected SimpleHttpResponse doRequest(String method, String uri, RequestHandler requestHandler) throws IOException, ExecutionException, InterruptedException {
+    return doAsyncRequest(method, uri, requestHandler,null).get();
 
-    try {
-      return doAsyncRequest(method, uri, requestHandler,null).get();
-    } catch (InterruptedException e) {
-      LOG.warn(null,e);
-    }
-    return null;
   }
 
   @Override
@@ -103,12 +98,11 @@ public class ApiAsyncClientImpl implements ApiClient, RestClient, RestAsyncClien
         T data = null;
         try {
           data = responseHandler.handleResponse(result);
-        } catch (IOException e) {
-          e.printStackTrace();
-        } catch (ParseException e) {
-          e.printStackTrace();
+          future.completed(data);
+        } catch (Exception e) {
+          LOG.warn("handleResponse error",e);
+          future.failed(e);
         }
-        future.completed(data);
       }
 
       @Override
@@ -124,7 +118,8 @@ public class ApiAsyncClientImpl implements ApiClient, RestClient, RestAsyncClien
     try {
       doAsyncRequest(method, uri, requestHandler,
           futureCallback);
-    } catch (IOException e) {
+    } catch (Exception e) {
+      LOG.warn("doAsyncRequest error",e);
       futureCallback.failed(e);
     }
     return future;
@@ -212,7 +207,7 @@ public class ApiAsyncClientImpl implements ApiClient, RestClient, RestAsyncClien
 
 
   @Override
-  public <T> T doRequest(String method, String uri, RequestHandler requestHandler, ResponseHandler<T> responseHandler) throws IOException, ParseException, ExecutionException {
+  public <T> T doRequest(String method, String uri, RequestHandler requestHandler, ResponseHandler<T> responseHandler) throws IOException, ParseException, ExecutionException, InterruptedException {
     SimpleHttpResponse response = doRequest(method,uri, requestHandler);
     return responseHandler.handleResponse(response);
   }
@@ -221,22 +216,22 @@ public class ApiAsyncClientImpl implements ApiClient, RestClient, RestAsyncClien
   public N3Map request(String method, String uri, RequestHandler requestHandler) {
     N3Map n3Map = new N3Map();
     try {
-      N3Map data = doRequest(method,uri, requestHandler,new N3MapResponseHandler());
+      N3Map data = doRequest(method, uri, requestHandler,new N3MapResponseHandler());
       n3Map.putAll(data);
-    } catch (IOException | ParseException | ExecutionException e) {
+    } catch (IOException | ParseException | ExecutionException | InterruptedException e) {
       n3Map.put(EXCEPTION,e);
       n3Map.put(E,e);
       n3Map.put(ERROR,e.getClass().getSimpleName());
       //LOG.warn(null,e);
     }
-    if(checker!=null&&checker.postCheck(this,n3Map)){
+    if(checker!=null&&checker.postCheck(this, n3Map)){
       n3Map = request(method, uri, requestHandler);
     }
     return n3Map;
   }
 
 
-  protected SimpleHttpResponse doRequest(String method, String uri, Map<String, Object> params) throws IOException,ExecutionException {
+  protected SimpleHttpResponse doRequest(String method, String uri, Map<String, Object> params) throws IOException, ExecutionException, InterruptedException {
     return doRequest(method,uri,getParamsHandle(params));
   }
 
@@ -272,19 +267,19 @@ public class ApiAsyncClientImpl implements ApiClient, RestClient, RestAsyncClien
   }
 
   @Override
-  public <T> T doRequest(String method, String uri, Map<String, Object> params, ResponseHandler<T> responseHandler) throws IOException, ParseException, ExecutionException {
+  public <T> T doRequest(String method, String uri, Map<String, Object> params, ResponseHandler<T> responseHandler) throws IOException, ParseException, ExecutionException, InterruptedException {
     SimpleHttpResponse response = doRequest(method,uri, params);
     return responseHandler.handleResponse(response);
   }
 
 
-  protected SimpleHttpResponse doRequest(HttpMethod method, String uri, RequestHandler requestHandler) throws IOException, ExecutionException {
+  protected SimpleHttpResponse doRequest(HttpMethod method, String uri, RequestHandler requestHandler) throws IOException, ExecutionException, InterruptedException {
     return doRequest(method.name(),uri, requestHandler);
   }
 
 
 
-  protected SimpleHttpResponse doRequest(HttpMethod method, String uri, Map<String, Object> params) throws IOException, ExecutionException {
+  protected SimpleHttpResponse doRequest(HttpMethod method, String uri, Map<String, Object> params) throws IOException, ExecutionException, InterruptedException {
     return doRequest(method.name(),uri,params);
   }
 
