@@ -18,6 +18,7 @@ buildscript {
 }
 
 apply plugin: 'java'
+apply plugin: 'java-library'
 apply plugin: 'maven'
 apply plugin: 'signing'
 apply plugin: 'net.researchgate.release'
@@ -102,8 +103,9 @@ repositories {
 }
 
 dependencies {
-  compile("net.xdob.luava:luava:${luava_version}")
-  compile("org.apache.httpcomponents.client5:httpclient5:${httpclient_version}")
+  api("org.apache.httpcomponents.client5:httpclient5:${httpclient_version}")
+  api("net.xdob.luava:luava:${luava_version}")
+  implementation("com.google.code.gson:gson:2.11.0")
   testImplementation 'org.junit.jupiter:junit-jupiter-api:5.7.0'
   testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine:5.7.0'
 }
