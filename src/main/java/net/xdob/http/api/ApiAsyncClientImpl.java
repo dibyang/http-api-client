@@ -18,6 +18,7 @@ import org.slf4j.LoggerFactory;
 import java.io.IOException;
 import java.net.URI;
 import java.util.*;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 
@@ -66,14 +67,16 @@ public class ApiAsyncClientImpl implements ApiClient, RestClient, RestAsyncClien
 
 
   protected SimpleHttpResponse doRequest(String method, String uri, RequestHandler requestHandler) throws IOException, ExecutionException, InterruptedException {
-    return doAsyncRequest(method, uri, requestHandler,null).get();
+    return doAsyncRequest(method, uri, requestHandler).get();
 
   }
 
   @Override
-  public Future<SimpleHttpResponse> doAsyncRequest(String method, String uri, RequestHandler requestHandler, FutureCallback<SimpleHttpResponse> callback) throws IOException {
+  public CompletableFuture<SimpleHttpResponse> doAsyncRequest(String method, String uri, RequestHandler requestHandler) throws IOException {
     List<RequestHandler> requestHandlers = Lists.newArrayList(baseRequestHandlers);
-
+    if(!uri.startsWith("/")){
+      uri = "/" + uri;
+    }
     final SimpleRequestBuilder requestBuilder = SimpleRequestBuilder.create(method)
         .setUri(baseUri.resolve(uri));
     if(requestHandler !=null){
@@ -83,126 +86,132 @@ public class ApiAsyncClientImpl implements ApiClient, RestClient, RestAsyncClien
       handle.handle(requestBuilder);
     }
     SimpleHttpRequest httpRequest = requestBuilder.build();
-    Future<SimpleHttpResponse> future = client.getHttpAsyncClient().execute(httpRequest, callback);
-    return future;
-
-  }
-
-  @Override
-  public <T> Future<T> doAsyncRequest(String method, String uri, RequestHandler requestHandler, ResponseHandler<T> responseHandler, FutureCallback<T> callback) {
-    final ComplexFuture<T> future = new ComplexFuture<>(callback);
-    FutureCallback<SimpleHttpResponse> futureCallback = new FutureCallback<SimpleHttpResponse>() {
-
+    CompletableFuture<SimpleHttpResponse> completableFuture = new CompletableFuture<>();
+    FutureCallback<SimpleHttpResponse> callback = new FutureCallback<SimpleHttpResponse>() {
       @Override
-      public void completed(SimpleHttpResponse result) {
-        T data = null;
-        try {
-          data = responseHandler.handleResponse(result);
-          future.completed(data);
-        } catch (Exception e) {
-          LOG.warn("handleResponse error",e);
-          future.failed(e);
-        }
+      public void completed(SimpleHttpResponse simpleHttpResponse) {
+        completableFuture.complete(simpleHttpResponse);
       }
 
       @Override
-      public void failed(final Exception ex) {
-        future.failed(ex);
+      public void failed(Exception e) {
+        completableFuture.completeExceptionally(e);
       }
 
       @Override
       public void cancelled() {
-        future.cancel();
+
       }
     };
+    client.getHttpAsyncClient().execute(httpRequest, callback);
+    return completableFuture;
+
+  }
+
+  @Override
+  public <T> CompletableFuture<T> doAsyncRequest(String method, String uri, RequestHandler requestHandler, ResponseHandler<T> responseHandler) {
+    final CompletableFuture<T> completableFuture = new CompletableFuture<>();
     try {
-      doAsyncRequest(method, uri, requestHandler,
-          futureCallback);
+      CompletableFuture<SimpleHttpResponse> future = doAsyncRequest(method, uri, requestHandler);
+      future.whenComplete((result,e)->{
+        if(e==null){
+          T data = null;
+          try {
+            data = responseHandler.handleResponse(result);
+            completableFuture.complete(data);
+          } catch (Exception e1) {
+            LOG.warn("handleResponse error",e1);
+            completableFuture.completeExceptionally(e1);
+          }
+        }else{
+          completableFuture.completeExceptionally(e);
+        }
+      });
     } catch (Exception e) {
       LOG.warn("doAsyncRequest error",e);
-      futureCallback.failed(e);
+      completableFuture.completeExceptionally(e);
     }
-    return future;
+    return completableFuture;
   }
 
   @Override
-  public <T> Future<T> doAsyncRequest(String method, String uri, Map<String, Object> params, ResponseHandler<T> responseHandler, FutureCallback<T> callback) {
-    return doAsyncRequest(method, uri, getParamsHandle(params), responseHandler, callback);
+  public <T> CompletableFuture<T> doAsyncRequest(String method, String uri, Map<String, Object> params, ResponseHandler<T> responseHandler) {
+    return doAsyncRequest(method, uri, getParamsHandle(params), responseHandler);
   }
 
   @Override
-  public Future<N3Map> asyncRequest(String method, String uri, RequestHandler requestHandler, FutureCallback<N3Map> callback) {
-    return doAsyncRequest(method, uri, requestHandler, new N3MapResponseHandler(), callback);
+  public CompletableFuture<N3Map> asyncRequest(String method, String uri, RequestHandler requestHandler) {
+    return doAsyncRequest(method, uri, requestHandler, new N3MapResponseHandler());
   }
 
   @Override
-  public Future<N3Map> asyncRequest(String method, String uri, Map<String, Object> params, FutureCallback<N3Map> callback) {
-    return doAsyncRequest(method, uri, getParamsHandle(params), new N3MapResponseHandler(), callback);
+  public CompletableFuture<N3Map> asyncRequest(String method, String uri, Map<String, Object> params) {
+    return doAsyncRequest(method, uri, getParamsHandle(params), new N3MapResponseHandler());
   }
 
   @Override
-  public Future<N3Map> asyncRequest(String method, String uri, FutureCallback<N3Map> callback) {
-    return doAsyncRequest(method, uri, (RequestHandler)null, new N3MapResponseHandler(), callback);
+  public CompletableFuture<N3Map> asyncRequest(String method, String uri) {
+    return doAsyncRequest(method, uri, (RequestHandler)null, new N3MapResponseHandler());
   }
 
   @Override
-  public Future<N3Map> asyncGet(String uri, Map<String, Object> params, FutureCallback<N3Map> callback) {
-    return doAsyncRequest(HttpMethod.GET.name(), uri, getParamsHandle(params), new N3MapResponseHandler(), callback);
+  public CompletableFuture<N3Map> asyncGet(String uri, Map<String, Object> params) {
+    return doAsyncRequest(HttpMethod.GET.name(), uri, getParamsHandle(params), new N3MapResponseHandler());
   }
 
   @Override
-  public Future<N3Map> asyncPost(String uri, Map<String, Object> params, FutureCallback<N3Map> callback) {
-    return doAsyncRequest(HttpMethod.POST.name(), uri, getParamsHandle(params), new N3MapResponseHandler(), callback);
+  public CompletableFuture<N3Map> asyncPost(String uri, Map<String, Object> params) {
+    return doAsyncRequest(HttpMethod.POST.name(), uri, getParamsHandle(params), new N3MapResponseHandler());
   }
 
   @Override
-  public Future<N3Map> asyncPut(String uri, Map<String, Object> params, FutureCallback<N3Map> callback) {
-    return doAsyncRequest(HttpMethod.PUT.name(), uri, getParamsHandle(params), new N3MapResponseHandler(), callback);
+  public CompletableFuture<N3Map> asyncPut(String uri, Map<String, Object> params) {
+    return doAsyncRequest(HttpMethod.PUT.name(), uri, getParamsHandle(params), new N3MapResponseHandler());
   }
 
   @Override
-  public Future<N3Map> asyncDelete(String uri, Map<String, Object> params, FutureCallback<N3Map> callback) {
-    return doAsyncRequest(HttpMethod.DELETE.name(), uri, getParamsHandle(params), new N3MapResponseHandler(), callback);
+  public CompletableFuture<N3Map> asyncDelete(String uri, Map<String, Object> params) {
+    return doAsyncRequest(HttpMethod.DELETE.name(), uri, getParamsHandle(params), new N3MapResponseHandler());
   }
 
   @Override
-  public Future<N3Map> asyncGet(String uri, RequestHandler requestHandler, FutureCallback<N3Map> callback) {
-    return doAsyncRequest(HttpMethod.GET.name(), uri, requestHandler, new N3MapResponseHandler(), callback);
+  public CompletableFuture<N3Map> asyncGet(String uri, RequestHandler requestHandler) {
+    return doAsyncRequest(HttpMethod.GET.name(), uri, requestHandler, new N3MapResponseHandler());
   }
 
   @Override
-  public Future<N3Map> asyncPost(String uri, RequestHandler requestHandler, FutureCallback<N3Map> callback) {
-    return doAsyncRequest(HttpMethod.POST.name(), uri, requestHandler, new N3MapResponseHandler(), callback);
+  public CompletableFuture<N3Map> asyncPost(String uri, RequestHandler requestHandler) {
+    return doAsyncRequest(HttpMethod.POST.name(), uri, requestHandler, new N3MapResponseHandler());
   }
 
   @Override
-  public Future<N3Map> asyncPut(String uri, RequestHandler requestHandler, FutureCallback<N3Map> callback) {
-    return doAsyncRequest(HttpMethod.PUT.name(), uri, requestHandler, new N3MapResponseHandler(), callback);
+  public CompletableFuture<N3Map> asyncPut(String uri, RequestHandler requestHandler) {
+    return doAsyncRequest(HttpMethod.PUT.name(), uri, requestHandler, new N3MapResponseHandler());
   }
 
   @Override
-  public Future<N3Map> asyncDelete(String uri, RequestHandler requestHandler, FutureCallback<N3Map> callback) {
-    return doAsyncRequest(HttpMethod.DELETE.name(), uri, requestHandler, new N3MapResponseHandler(), callback);
+  public CompletableFuture<N3Map> asyncDelete(String uri, RequestHandler requestHandler) {
+    return doAsyncRequest(HttpMethod.DELETE.name(), uri, requestHandler, new N3MapResponseHandler());
   }
 
   @Override
-  public Future<N3Map> asyncGet(String uri, FutureCallback<N3Map> callback) {
-    return doAsyncRequest(HttpMethod.GET.name(), uri, (RequestHandler)null, new N3MapResponseHandler(), callback);
+  public CompletableFuture<N3Map> asyncGet(String uri) {
+    return doAsyncRequest(HttpMethod.GET.name(), uri, (RequestHandler)null, new N3MapResponseHandler());
   }
 
   @Override
-  public Future<N3Map> asyncPost(String uri, FutureCallback<N3Map> callback) {
-    return doAsyncRequest(HttpMethod.POST.name(), uri, (RequestHandler)null, new N3MapResponseHandler(), callback);
+  public CompletableFuture<N3Map> asyncPost(String uri) {
+    return doAsyncRequest(HttpMethod.POST.name(), uri, (RequestHandler)null, new N3MapResponseHandler());
   }
 
   @Override
-  public Future<N3Map> asyncPut(String uri, FutureCallback<N3Map> callback) {
-    return doAsyncRequest(HttpMethod.PUT.name(), uri, (RequestHandler)null, new N3MapResponseHandler(), callback);
+  public CompletableFuture<N3Map> asyncPut(String uri) {
+    return doAsyncRequest(HttpMethod.PUT.name(), uri, (RequestHandler)null, new N3MapResponseHandler());
   }
 
   @Override
-  public Future<N3Map> asyncDelete(String uri, FutureCallback<N3Map> callback) {
-    return doAsyncRequest(HttpMethod.DELETE.name(), uri, (RequestHandler)null, new N3MapResponseHandler(), callback);
+  public CompletableFuture<N3Map> asyncDelete(String uri) {
+    return doAsyncRequest(HttpMethod.DELETE.name(), uri, (RequestHandler)null, new N3MapResponseHandler());
   }
 
 

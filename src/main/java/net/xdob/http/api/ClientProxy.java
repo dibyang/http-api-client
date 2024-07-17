@@ -16,10 +16,7 @@ import java.lang.reflect.*;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Future;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
+import java.util.concurrent.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -77,27 +74,6 @@ public class ClientProxy <T> implements InvocationHandler {
     return arg;
   }
 
-  private FutureCallbackDefine getFutureCallback(Object[] args){
-    if(args!=null){
-      for (Object arg : args) {
-        if(arg instanceof FutureCallback){
-          FutureCallbackDefine futureCallbackDefine = new FutureCallbackDefine((FutureCallback)arg);
-          Type[] types = arg.getClass().getGenericInterfaces();
-          for (Type type : types) {
-            if(type instanceof ParameterizedType){
-              ParameterizedType parameterizedType = (ParameterizedType) type;
-              if(parameterizedType.getRawType().equals(FutureCallback.class)) {
-                futureCallbackDefine.setDataType(parameterizedType.getActualTypeArguments()[0]);
-              }
-            }
-          }
-          return futureCallbackDefine;
-        }
-      }
-    }
-    return null;
-  }
-
   String getParameterName(Parameter parameter){
     Param param = parameter.getAnnotation(Param.class);
     String name = null;
@@ -142,33 +118,21 @@ public class ClientProxy <T> implements InvocationHandler {
       Map<String, Object> reqParams = this.getRequestParams(method, argParams);
 
       HttpMethod httpMethod = mapping.method();
-
-      FutureCallbackDefine  futureCallback = getFutureCallback(args);
-      if(futureCallback!=null){
-        asyncInvoke(futureCallback, method, mapping, uri, reqParams, httpMethod);
+      if(Future.class.isAssignableFrom(method.getReturnType())){
+        return asyncInvoke(method, mapping, uri, reqParams, httpMethod);
       }else {
-        Type returnType = method.getGenericReturnType();
-        ParameterizedType genericReturnType = null;
-        if(returnType!=null&&returnType instanceof ParameterizedType){
-          genericReturnType = (ParameterizedType)returnType;
-        }
-        if(genericReturnType !=null
-            &&Future.class.equals(genericReturnType.getRawType())){
-          FutureCallbackDefine  futureCallback2 = new FutureCallbackDefine(null);
-          futureCallback2.setDataType(genericReturnType.getActualTypeArguments()[0]);
-          return asyncInvoke(futureCallback2, method, mapping, uri, reqParams, httpMethod);
-        }else {
-          return syncInvoke(method, mapping, uri, reqParams, httpMethod);
-        }
+        return syncInvoke(method, mapping, uri, reqParams, httpMethod);
       }
     }
     return null;
   }
 
-  private Future<?> asyncInvoke(FutureCallbackDefine  futureCallback, Method method, Mapping mapping, String uri, Map<String, Object> reqParams, HttpMethod httpMethod) throws Throwable {
-    //Type returnType = futureCallback.getDataType();
-    Type returnType = futureCallback.getDataType();
-
+  private CompletableFuture<?> asyncInvoke(Method method, Mapping mapping, String uri, Map<String, Object> reqParams, HttpMethod httpMethod) throws Throwable {
+    Type returnType = method.getGenericReturnType();
+    if(returnType instanceof ParameterizedType){
+      returnType = ((ParameterizedType)returnType).getActualTypeArguments()[0];
+    }
+    final Type dataType = returnType;
     RequestHandler requestHandler = builder->{
       Sign sign = method.getAnnotation(Sign.class);
       if(sign!=null){
@@ -185,74 +149,26 @@ public class ClientProxy <T> implements InvocationHandler {
       RequestHandler paramsHandler = client.getParamsHandle(reqParams);
       paramsHandler.handle(builder);
     };
-    ResponseHandler<?> responseHandler = client.getHttpClient().getFactoryConfig().getResponseHandler(returnType, mapping.handlerName());
-    FutureCallback callback = futureCallback.getCallback();
+    ResponseHandler<?> responseHandler = client.getHttpClient().getFactoryConfig().getResponseHandler(dataType, mapping.handlerName());
+
     if(responseHandler!=null){
-      return client.getRestAsyncClient().doAsyncRequest(httpMethod.name(), uri, requestHandler, responseHandler, callback);
+      return client.getRestAsyncClient().doAsyncRequest(httpMethod.name(), uri, requestHandler, responseHandler);
     }else{
-      final Future<N3Map> future = client.getRestAsyncClient().asyncRequest(httpMethod.name(), uri, requestHandler, new FutureCallback<N3Map>() {
-        @Override
-        public void completed(N3Map map) {
-          if(callback!=null) {
-            try {
-              Object value = wrapValue(method, mapping, returnType, map);
-              callback.completed(value);
-            } catch (Exception e) {
-              callback.failed(e);
-            }
+      CompletableFuture<Object> completableFuture = new CompletableFuture<>();
+      final CompletableFuture<N3Map> future = client.getRestAsyncClient().asyncRequest(httpMethod.name(), uri, requestHandler);
+      future.whenComplete((r,e)->{
+        if(e==null){
+          try {
+            Object value = wrapValue(method, mapping, dataType, r);
+            completableFuture.complete(value);
+          } catch (Exception ex) {
+            completableFuture.completeExceptionally(ex);
           }
-        }
-
-        @Override
-        public void failed(Exception ex) {
-          if(callback!=null){
-            callback.failed(ex);
-          }
-        }
-
-        @Override
-        public void cancelled() {
-          if(callback!=null){
-            callback.cancelled();
-          }
+        }else{
+          completableFuture.completeExceptionally(e);
         }
       });
-      return new Future<Object>() {
-        @Override
-        public boolean cancel(boolean mayInterruptIfRunning) {
-          return future.cancel(mayInterruptIfRunning);
-        }
-
-        @Override
-        public boolean isCancelled() {
-          return future.isCancelled();
-        }
-
-        @Override
-        public boolean isDone() {
-          return future.isDone();
-        }
-
-        @Override
-        public Object get() throws InterruptedException, ExecutionException {
-          N3Map map = future.get();
-          try {
-            return wrapValue(method, mapping, returnType, map);
-          } catch (Exception e) {
-            throw new ExecutionException(e);
-          }
-        }
-
-        @Override
-        public Object get(long timeout, TimeUnit unit) throws InterruptedException, ExecutionException, TimeoutException {
-          N3Map map = future.get(timeout,unit);
-          try {
-            return wrapValue(method, mapping, returnType, map);
-          } catch (Exception e) {
-            throw new ExecutionException(e);
-          }
-        }
-      };
+      return completableFuture;
     }
   }
 

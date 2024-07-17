@@ -44,7 +44,7 @@ public class HttpClientFactoryImpl implements HttpClientFactory {
 
   public final static int DEFAULT_CONNECT_TIMEOUT = 5 * 1000;
   public final static int DEFAULT_SOCKET_TIMEOUT = 10 * 1000;
-  public final static String DEFAULT_CHARSET = "utf-8";
+
 
 
   private int connTimeout = DEFAULT_CONNECT_TIMEOUT;
