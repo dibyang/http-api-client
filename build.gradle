@@ -7,19 +7,11 @@ buildscript {
   dependencies {
     classpath 'net.researchgate:gradle-release:2.6.0'
   }
-  //skip Test tasks
-  gradle.taskGraph.whenReady {
-    tasks.each { task ->
-      if (task.name.contains("test")) {
-        task.enabled = false
-      }
-    }
-  }
 }
 
 apply plugin: 'java'
-apply plugin: 'java-library'
-apply plugin: 'maven'
+apply plugin: "java-library"
+apply plugin: 'maven-publish'
 apply plugin: 'signing'
 apply plugin: 'net.researchgate.release'
 
@@ -29,11 +21,6 @@ if(signing_cfg.exists()) {
   props.load(new FileInputStream(signing_cfg))
   props.each { prop ->
     project.ext.set(prop.key, prop.value)
-  }
-
-  // 将构建的包签名
-  signing {
-    sign configurations.archives
   }
 }
 
@@ -60,34 +47,12 @@ release {
 }
 
 
-afterReleaseBuild.dependsOn uploadArchives
-
-
 configurations.all {
   resolutionStrategy {
     // cache dynamic versions for 10 seconds
     cacheDynamicVersionsFor 10, 'seconds'
     // don't cache changing modules at all
     cacheChangingModulesFor 0, 'seconds'
-  }
-}
-
-sourceSets {
-  main {
-    java {
-      srcDirs = ['src/main/java']
-    }
-    resources {
-      srcDirs = ['src/main/resources']
-    }
-  }
-  test {
-    java {
-      srcDirs = ['src/test/java', 'src/sample/java']
-    }
-    resources {
-      srcDirs = ['src/test/resources']
-    }
   }
 }
 
@@ -104,30 +69,28 @@ repositories {
 
 dependencies {
   api("org.apache.httpcomponents.client5:httpclient5:${httpclient_version}")
-  api("net.xdob.luava:luava:${luava_version}")
+  implementation("net.xdob.luava:luava:${luava_version}")
   implementation("com.google.code.gson:gson:2.11.0")
   testImplementation 'org.junit.jupiter:junit-jupiter-api:5.7.0'
   testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine:5.7.0'
 }
 
-processResources {
-  filter org.apache.tools.ant.filters.ReplaceTokens, beginToken : '${', endToken : '}',tokens:['project.version': project.version]
-}
 
 tasks.withType(JavaCompile) {
   options.encoding = 'UTF-8'
 }
 
-//对于典型的 Java 项目，您可以添加一个javadocJar以及一个 sourcesJar任务
+//对于典型的 Java 项目，您可以添加一个javadocJar以及一个 sourceJar任务
 task javadocJar(type: Jar) {
-  classifier = 'javadoc'
+  archiveClassifier = 'javadoc'
   from javadoc
 }
 
-task sourcesJar(type: Jar) {
-  classifier = 'sources'
+task sourceJar(type: Jar) {
+  archiveClassifier = 'sources'
   from sourceSets.main.allSource
 }
+
 // javadoc 配置，这里是自定义了 java doc 的一些配置
 javadoc {
   description = "Generates project-level javadoc for use in -javadoc jar"
@@ -148,54 +111,77 @@ javadoc {
 
 // 并将它们与项目 jar 本身一起连接到 artifacts 集合中：
 artifacts {
-  archives javadocJar, sourcesJar
+  archives javadocJar, sourceJar
 }
 
-
-uploadArchives {
-  repositories {
-    mavenDeployer {
-      beforeDeployment { MavenDeployment deployment -> signing.signPom(deployment) }
-
-      repository(url: "https://s01.oss.sonatype.org/service/local/staging/deploy/maven2/") {
-        authentication(userName: findProperty("ossrhUsername")?:"", password: findProperty("ossrhPassword")?:"")
-      }
-
-      snapshotRepository(url: "https://s01.oss.sonatype.org/content/repositories/snapshots/") {
-        authentication(userName: findProperty("ossrhUsername")?:"", password: findProperty("ossrhPassword")?:"")
-      }
-
-      pom.project {
-        name 'http-apiclient'
-        packaging 'jar'
-        // optionally artifactId can be defined here
-        description "the LoongStore util library"
-        url 'https://github.com/dibyang/http-apiclient'
-
-        scm {
-          connection 'scm:git:https://github.com/dibyang/http-apiclient.git'
-          developerConnection 'scm:git:https://github.com/dibyang/http-apiclient.git'
-          url 'https://github.com/dibyang/http-apiclient.git'
-        }
-
+publishing {
+  publications {
+    maven(MavenPublication) {
+      groupId = project.group
+      artifactId = project.name
+      version = project.version
+      //如果不定义，则会按照以上默认值执行
+      // 添加源码jar
+      artifact sourceJar
+      // 添加javadocjar
+      artifact javadocJar
+      // 指定要发布的模块
+      from components.java
+      pom {
+        name = 'http-api-client'
+        description = "http api client"
+        url = 'https://github.com/dibyang/http-apiclient'
         licenses {
           license {
-            name 'The Apache License, Version 2.0'
-            url 'http://www.apache.org/licenses/LICENSE-2.0.txt'
+            name = 'The Apache License, Version 2.0'
+            url = 'http://www.apache.org/licenses/LICENSE-2.0.txt'
           }
         }
-
         developers {
           developer {
-            id 'yangzj'
-            name 'Yang zhijian'
-            email '3227817@qq.com'
+            id = 'yangzj'
+            name = 'Yang zhijian'
+            email = '3227817@qq.com'
           }
+        }
+        scm {
+          connection = 'scm:git:https://github.com/dibyang/http-apiclient.git'
+          developerConnection = 'scm:git:https://github.com/dibyang/http-apiclient.git'
+          url = 'https://github.com/dibyang/http-apiclient.git'
+        }
+      }
+
+      versionMapping {
+        usage('java-api') {
+          fromResolutionOf('runtimeClasspath')
+        }
+        usage('java-runtime') {
+          fromResolutionResult()
         }
       }
     }
   }
+  repositories {
+    maven {
+      // 发布仓库配置，这里基于version后缀是否为SNAPSHOT来区分发布到release库还是snapshots库
+      if(version.endsWith('SNAPSHOT')){
+        it.url = project.property("snapshotsRepository")
+      }else{
+        it.url = project.property("releasesRepository")
+      }
+      it.name = "deployment"
+      it.credentials {
+        it.username = project.property("ossrhUsername")
+        it.password = project.property("ossrhPassword")
+      }
+    }
+  }
 }
+//
+//// 将构建的包签名
+//signing {
+//  sign publishing.publications.maven
+//}
 
 
 
